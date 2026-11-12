@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Becoming an Artist</string>
+    <string name="title_activity_main">Becoming an Artist</string>
+    <string name="package_name">com.becominganartist.app</string>
+    <string name="custom_url_scheme">com.becominganartist.app</string>
+</resources>
