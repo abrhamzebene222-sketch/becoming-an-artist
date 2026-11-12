@@ -2,8 +2,8 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { createElement } from 'react';
 
 const TOKEN_KEY = 'baa_token';
-// Empty on the website (same server). In the Android app it is your public server address, set in client/.env.production
-export const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+// Set your live Render backend URL here for production/Android builds
+export const API_BASE = (import.meta.env.VITE_API_URL || 'https://becoming-an-artist.onrender.com').replace(/\/$/, '');
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 
 export async function api(path, { method = 'GET', body, form } = {}) {
