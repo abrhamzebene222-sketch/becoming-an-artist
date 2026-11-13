@@ -1,52 +1,14 @@
-# Builds the "Becoming an Artist" Android APK in the cloud (free on GitHub).
-# 1) Push this project to a GitHub repository.
-# 2) Repo → Settings → Secrets and variables → Actions → Variables → New variable:
-#      API_URL = https://becoming-an-artist.onrender.com   (your Render URL)
-# 3) Repo → Actions → "Build Android APK" → Run workflow.
-# 4) Download the APK from the run's "Artifacts" section.
-name: Build Android APK
-
-on:
-  workflow_dispatch:
-  push:
-    tags: ['v*']
-
-jobs:
-  apk:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: client
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+- name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: client/package-lock.json
+          distribution: 'temurin'
+          java-version: '17'
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Install
-        run: npm ci
-
-      - name: Point the app at your server
-        run: echo "VITE_API_URL=${{ vars.API_URL }}" > .env.android
-
-      - name: Build web app and sync into Android project
-        run: npm run build:android
-
-      - name: Build APK
-        working-directory: client/android
-        run: chmod +x gradlew && ./gradlew assembleDebug
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: becoming-an-artist-apk
-          path: client/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Install SDK Tools & Build Tools
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager --update
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
