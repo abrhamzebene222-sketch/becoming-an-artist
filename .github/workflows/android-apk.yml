@@ -1,4 +1,26 @@
-- name: Set up JDK 17
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -7,8 +29,7 @@
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install SDK Tools & Build Tools
+      - name: Install SDK Packages
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager --update
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          echo "y" | sdkmanager --licenses || true
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
