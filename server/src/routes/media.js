@@ -1,22 +1,24 @@
 // Lesson playback via Cloudinary.
-// The student's app asks this server for a lesson; the server checks access and returns a
-// signed Cloudinary URL. The browser/app then loads the video or PDF directly from Cloudinary's CDN.
+// Free courses and preview lessons: anyone (no login). Paid courses: logged-in students with access.
 import { Router } from 'express';
-import { db, hasCourseAccess } from '../db.js';
-import { requireAuth } from '../auth.js';
+import mongoose from 'mongoose';
+import { Lesson, Course } from '../models/index.js';
+import { optionalAuth } from '../auth.js';
+import { fail } from '../i18n.js';
+import { ah, hasCourseAccess } from '../lib.js';
 import { lessonUrl, posterUrl, isConfigured } from '../cloudinary.js';
 
 const router = Router();
 
-const canOpen = (user, lesson) =>
-  user.role === 'admin' || lesson.is_preview || hasCourseAccess(user.id, lesson.course_id);
-
-router.get('/token/:lessonId', requireAuth, (req, res) => {
-  const lesson = db.prepare('SELECT * FROM lessons WHERE id = ?').get(req.params.lessonId);
-  if (!lesson) return res.status(404).json({ error: 'Lesson not found.' });
-  if (!canOpen(req.user, lesson)) return res.status(403).json({ error: 'Unlock this course to watch.' });
-  if (!isConfigured()) return res.status(503).json({ error: 'Video hosting is not configured yet.' });
+router.get('/token/:lessonId', optionalAuth, ah(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.lessonId)) return fail(req, res, 404, 'lessonNotFound');
+  const lesson = await Lesson.findById(req.params.lessonId).lean();
+  if (!lesson) return fail(req, res, 404, 'lessonNotFound');
+  const course = await Course.findById(lesson.course).lean();
+  const open = lesson.isPreview || (await hasCourseAccess(req.user, course));
+  if (!open) return fail(req, res, req.user ? 403 : 401, req.user ? 'unlockToWatch' : 'loginToWatch');
+  if (!isConfigured()) return fail(req, res, 503, 'videoNotConfigured');
   res.json({ url: lessonUrl(lesson), poster: posterUrl(lesson), kind: lesson.kind });
-});
+}));
 
 export default router;

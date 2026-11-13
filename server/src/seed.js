@@ -1,204 +1,197 @@
-// Seeds the academic curriculum, default contact info, settings and the admin account.
-// Safe to run more than once — it only inserts what is missing.
+// Seeds the academic curriculum, default contacts, settings and the admin account.
+// Safe to run on every start — it only inserts what is missing and never overwrites your edits.
 import bcrypt from 'bcryptjs';
-import { db, getSetting, setSetting } from './db.js';
+import { pathToFileURL } from 'node:url';
+import { Category, Course, ContactInfo, SubmissionLink, Setting, User } from './models/index.js';
 import { config } from './config.js';
-
-// PLACEHOLDER price — change every course price in Admin › Courses & Pricing.
-const DEFAULT_PRICE = 0;
 
 const c = (criterion, weight) => ({ criterion, weight });
 
+// Prices start at 0 with isFree=false → shown as "Price coming soon" until you set them in Admin › Courses.
 const CURRICULUM = [
   {
-    title: 'Drawing Fundamentals', slug: 'drawing-fundamentals',
+    title: 'Drawing Fundamentals', titleAm: 'የስዕል መሠረታዊ ትምህርቶች', slug: 'drawing-fundamentals',
     description: 'The grammar of drawing: mark, structure, volume and light.',
+    descriptionAm: 'የስዕል ሰዋስው፦ መስመር፣ መዋቅር፣ ይዘት እና ብርሃን።',
     courses: [
-      {
-        title: 'Points & Lines', slug: 'points-and-lines',
+      { title: 'Points & Lines', titleAm: 'ነጥቦች እና መስመሮች', slug: 'points-and-lines',
         summary: 'Control the most basic marks: dots, straight, curved and expressive lines.',
-        learning_outcomes: 'Draw confident straight and curved lines freehand, vary line weight intentionally and use line to describe contour and direction.',
+        summaryAm: 'መሠረታዊ ምልክቶችን መቆጣጠር፦ ነጥቦች፣ ቀጥ ያሉ፣ ጠማማ እና ስሜት ገላጭ መስመሮች።',
+        learningOutcomes: 'Draw confident straight and curved lines freehand, vary line weight intentionally and use line to describe contour and direction.',
         deliverables: '2 A4 sheets of line exercises (parallel, radiating, ellipses) + 1 contour drawing of a household object.',
-        criteria: [c('Line confidence & continuity', 30), c('Control of line weight', 25), c('Accuracy of ellipses and curves', 25), c('Neatness and page layout', 20)],
-      },
-      {
-        title: 'Formal Structures', slug: 'formal-structures',
+        evaluationCriteria: [c('Line confidence & continuity', 30), c('Control of line weight', 25), c('Accuracy of ellipses and curves', 25), c('Neatness and page layout', 20)] },
+      { title: 'Formal Structures', titleAm: 'ቅርጻዊ መዋቅሮች', slug: 'formal-structures',
         summary: 'Break complex objects into cubes, cylinders, spheres and cones.',
-        learning_outcomes: 'Construct objects from primitive forms, draw through hidden edges and keep proportions consistent.',
+        summaryAm: 'ውስብስብ ነገሮችን ወደ ኩብ፣ ሲሊንደር፣ ሉል እና ኮን መከፋፈል።',
+        learningOutcomes: 'Construct objects from primitive forms, draw through hidden edges and keep proportions consistent.',
         deliverables: '3 construction drawings of everyday objects showing all construction lines.',
-        criteria: [c('Correct use of primitive forms', 35), c('Proportion & alignment', 30), c('Clarity of construction lines', 20), c('Overall presentation', 15)],
-      },
-      {
-        title: 'Volume', slug: 'volume',
+        evaluationCriteria: [c('Correct use of primitive forms', 35), c('Proportion & alignment', 30), c('Clarity of construction lines', 20), c('Overall presentation', 15)] },
+      { title: 'Volume', titleAm: 'ይዘት (ቮልዩም)', slug: 'volume',
         summary: 'Make flat shapes feel three-dimensional with cross-contours and overlap.',
-        learning_outcomes: 'Describe volume with cross-contour lines, overlap and foreshortening without relying on shading.',
+        summaryAm: 'ጠፍጣፋ ቅርጾችን በመስቀለኛ መስመሮች እና በመደራረብ ባለ ሦስት አቅጣጫ ማድረግ።',
+        learningOutcomes: 'Describe volume with cross-contour lines, overlap and foreshortening without relying on shading.',
         deliverables: 'A drawing of a draped cloth and 2 fruit studies using only cross-contour line.',
-        criteria: [c('Convincing sense of volume', 40), c('Cross-contour accuracy', 30), c('Foreshortening', 15), c('Quality of linework', 15)],
-      },
-      {
-        title: 'Chiaroscuro: Tone & Light/Shadow', slug: 'chiaroscuro',
+        evaluationCriteria: [c('Convincing sense of volume', 40), c('Cross-contour accuracy', 30), c('Foreshortening', 15), c('Quality of linework', 15)] },
+      { title: 'Chiaroscuro: Tone & Light/Shadow', titleAm: 'ኪያሮስኩሮ፦ ቶን፣ ብርሃን እና ጥላ', slug: 'chiaroscuro',
         summary: 'Model form with light: value scales, the six zones of light and cast shadows.',
-        learning_outcomes: 'Build a 9-step value scale, identify light, half-tone, core shadow, reflected light and cast shadow, and render convincing form.',
+        summaryAm: 'ቅርጽን በብርሃን መግለጽ፦ የቶን ደረጃዎች፣ ስድስቱ የብርሃን ክፍሎች እና የሚወድቅ ጥላ።',
+        learningOutcomes: 'Build a 9-step value scale, identify light, half-tone, core shadow, reflected light and cast shadow, and render convincing form.',
         deliverables: 'A3 graphite still life of three objects under a single light source + 9-step value scale.',
-        criteria: [c('Value range & tonal contrast', 30), c('Accuracy of light zones', 30), c('Edge control (hard, soft, lost)', 20), c('Quality of linework & mark-making', 20)],
-      },
+        evaluationCriteria: [c('Value range & tonal contrast', 30), c('Accuracy of light zones', 30), c('Edge control (hard, soft, lost)', 20), c('Quality of linework & mark-making', 20)] },
     ],
   },
   {
-    title: 'Color Theory', slug: 'color-theory',
+    title: 'Color Theory', titleAm: 'የቀለም ጥናት', slug: 'color-theory',
     description: 'How color works — and how to make it work for you.',
+    descriptionAm: 'ቀለም እንዴት እንደሚሠራ እና እንዴት እንደሚጠቀሙበት።',
     courses: [
-      {
-        title: 'The Color Wheel', slug: 'color-wheel',
+      { title: 'The Color Wheel', titleAm: 'የቀለም ክብ', slug: 'color-wheel',
         summary: 'Primaries, secondaries, tertiaries and mixing with a limited palette.',
-        learning_outcomes: 'Mix a 12-step color wheel from three primaries and explain complementary and analogous relationships.',
+        summaryAm: 'ዋና፣ ሁለተኛ እና ሦስተኛ ደረጃ ቀለሞች እና በጥቂት ቀለሞች ማደባለቅ።',
+        learningOutcomes: 'Mix a 12-step color wheel from three primaries and explain complementary and analogous relationships.',
         deliverables: 'Hand-mixed 12-part color wheel + complementary mixing chart.',
-        criteria: [c('Mixing accuracy', 35), c('Clean, even paint application', 25), c('Correct color relationships', 25), c('Presentation', 15)],
-      },
-      {
-        title: 'Value Relationships', slug: 'value-relationships',
+        evaluationCriteria: [c('Mixing accuracy', 35), c('Clean, even paint application', 25), c('Correct color relationships', 25), c('Presentation', 15)] },
+      { title: 'Value Relationships', titleAm: 'የብሩህነት ግንኙነቶች', slug: 'value-relationships',
         summary: 'Every color has a value — learn to see and control it.',
-        learning_outcomes: 'Match the value of any hue to a grey scale and build color studies that read correctly in black and white.',
+        summaryAm: 'እያንዳንዱ ቀለም የራሱ ብሩህነት አለው — ማየት እና መቆጣጠር ይማሩ።',
+        learningOutcomes: 'Match the value of any hue to a grey scale and build color studies that read correctly in black and white.',
         deliverables: 'Value-matched color chart + one small still life with a greyscale photo of it.',
-        criteria: [c('Value matching accuracy', 40), c('Readability in greyscale', 30), c('Paint handling', 15), c('Presentation', 15)],
-      },
-      {
-        title: 'Temperature', slug: 'color-temperature',
+        evaluationCriteria: [c('Value matching accuracy', 40), c('Readability in greyscale', 30), c('Paint handling', 15), c('Presentation', 15)] },
+      { title: 'Temperature', titleAm: 'የቀለም ሙቀት', slug: 'color-temperature',
         summary: 'Warm vs cool, and how temperature shifts between light and shadow.',
-        learning_outcomes: 'Use warm/cool contrast to describe light and atmosphere and push forms forward or back.',
+        summaryAm: 'ሞቃት እና ቀዝቃዛ ቀለሞች፤ በብርሃን እና በጥላ መካከል ያለው የሙቀት ለውጥ።',
+        learningOutcomes: 'Use warm/cool contrast to describe light and atmosphere and push forms forward or back.',
         deliverables: 'Two versions of the same study: warm light/cool shadow and cool light/warm shadow.',
-        criteria: [c('Consistent temperature logic', 40), c('Sense of light', 30), c('Color mixing', 15), c('Presentation', 15)],
-      },
-      {
-        title: 'Harmonization', slug: 'color-harmonization',
+        evaluationCriteria: [c('Consistent temperature logic', 40), c('Sense of light', 30), c('Color mixing', 15), c('Presentation', 15)] },
+      { title: 'Harmonization', titleAm: 'የቀለም ስምምነት', slug: 'color-harmonization',
         summary: 'Build palettes that feel unified: analogous, complementary, triadic, split.',
-        learning_outcomes: 'Choose and apply a harmony scheme deliberately and justify the choice for mood.',
+        summaryAm: 'የተዋሃዱ የቀለም ምርጫዎችን መገንባት፦ ተመሳሳይ፣ ተቃራኒ፣ ሦስትዮሽ።',
+        learningOutcomes: 'Choose and apply a harmony scheme deliberately and justify the choice for mood.',
         deliverables: '3 thumbnail paintings of one scene in three harmony schemes + short written rationale.',
-        criteria: [c('Harmony applied correctly', 35), c('Mood & intent', 30), c('Color mixing', 20), c('Written rationale', 15)],
-      },
+        evaluationCriteria: [c('Harmony applied correctly', 35), c('Mood & intent', 30), c('Color mixing', 20), c('Written rationale', 15)] },
     ],
   },
   {
-    title: 'Composition & Perspective', slug: 'composition-perspective',
-    description: 'Arranging space and guiding the viewer\'s eye.',
+    title: 'Composition & Perspective', titleAm: 'ቅንብር እና ፐርስፔክቲቭ', slug: 'composition-perspective',
+    description: "Arranging space and guiding the viewer's eye.",
+    descriptionAm: 'ቦታን ማደራጀት እና የተመልካቹን ዓይን መምራት።',
     courses: [
-      {
-        title: 'Linear Perspective', slug: 'linear-perspective',
+      { title: 'Linear Perspective', titleAm: 'መስመራዊ ፐርስፔክቲቭ', slug: 'linear-perspective',
         summary: 'One-, two- and three-point perspective from the horizon line up.',
-        learning_outcomes: 'Set up horizon, vanishing points and measuring lines; draw boxes, interiors and streets in correct perspective.',
+        summaryAm: 'ባለ አንድ፣ ሁለት እና ሦስት ነጥብ ፐርስፔክቲቭ ከአድማስ መስመር ጀምሮ።',
+        learningOutcomes: 'Set up horizon, vanishing points and measuring lines; draw boxes, interiors and streets in correct perspective.',
         deliverables: 'One interior (1-point) and one street scene (2-point) with all construction lines visible.',
-        criteria: [c('Perspective accuracy', 40), c('Consistent eye level & scale', 25), c('Line quality', 20), c('Presentation', 15)],
-      },
-      {
-        title: 'Focal Points', slug: 'focal-points',
+        evaluationCriteria: [c('Perspective accuracy', 40), c('Consistent eye level & scale', 25), c('Line quality', 20), c('Presentation', 15)] },
+      { title: 'Focal Points', titleAm: 'የትኩረት ነጥቦች', slug: 'focal-points',
         summary: 'Create a clear center of interest with contrast, detail and placement.',
-        learning_outcomes: 'Lead the viewer to one focal point using value contrast, edge, detail and directional lines.',
+        summaryAm: 'በንፅፅር፣ በዝርዝር እና በአቀማመጥ ግልጽ የትኩረት ማዕከል መፍጠር።',
+        learningOutcomes: 'Lead the viewer to one focal point using value contrast, edge, detail and directional lines.',
         deliverables: '6 thumbnails + 1 finished composition with a clearly dominant focal point.',
-        criteria: [c('Clarity of focal point', 40), c('Use of eye-leading devices', 25), c('Thumbnail exploration', 20), c('Finish', 15)],
-      },
-      {
-        title: 'Spatial Tension', slug: 'spatial-tension',
+        evaluationCriteria: [c('Clarity of focal point', 40), c('Use of eye-leading devices', 25), c('Thumbnail exploration', 20), c('Finish', 15)] },
+      { title: 'Spatial Tension', titleAm: 'የቦታ ውጥረት', slug: 'spatial-tension',
         summary: 'Balance, asymmetry, negative space and the energy between shapes.',
-        learning_outcomes: 'Use asymmetrical balance, tangents (and avoiding them) and negative space to create dynamic compositions.',
+        summaryAm: 'ሚዛን፣ ያልተመጣጠነ አቀማመጥ፣ ባዶ ቦታ እና በቅርጾች መካከል ያለው ኃይል።',
+        learningOutcomes: 'Use asymmetrical balance, tangents (and avoiding them) and negative space to create dynamic compositions.',
         deliverables: 'Abstract shape study + a still-life composition annotated with balance analysis.',
-        criteria: [c('Dynamic balance', 35), c('Use of negative space', 30), c('Annotation & analysis', 20), c('Presentation', 15)],
-      },
-      {
-        title: 'Framing', slug: 'framing',
+        evaluationCriteria: [c('Dynamic balance', 35), c('Use of negative space', 30), c('Annotation & analysis', 20), c('Presentation', 15)] },
+      { title: 'Framing', titleAm: 'የምስል አቀራረጽ', slug: 'framing',
         summary: 'Crop, format and frame-within-a-frame decisions.',
-        learning_outcomes: 'Choose formats and crops deliberately and use framing devices within the picture.',
+        summaryAm: 'የመቁረጥ፣ የቅርጸት እና በፍሬም ውስጥ ፍሬም ውሳኔዎች።',
+        learningOutcomes: 'Choose formats and crops deliberately and use framing devices within the picture.',
         deliverables: 'One subject drawn in 4 crops/formats + final framed piece.',
-        criteria: [c('Strength of crop choices', 35), c('Frame-within-frame use', 25), c('Variety of exploration', 25), c('Finish', 15)],
-      },
+        evaluationCriteria: [c('Strength of crop choices', 35), c('Frame-within-frame use', 25), c('Variety of exploration', 25), c('Finish', 15)] },
     ],
   },
   {
-    title: 'Human Anatomy & Figure Drawing', slug: 'anatomy-figure',
+    title: 'Human Anatomy & Figure Drawing', titleAm: 'የሰውነት አናቶሚ እና የሰው ምስል ስዕል', slug: 'anatomy-figure',
     description: 'Drawing the human figure from structure to gesture.',
+    descriptionAm: 'የሰውን ምስል ከመዋቅር እስከ እንቅስቃሴ መሳል።',
     courses: [
-      {
-        title: 'Proportions', slug: 'figure-proportions',
+      { title: 'Proportions', titleAm: 'የሰውነት ተመጣጣኝነት', slug: 'figure-proportions',
         summary: 'Head-unit canons for adults, children and different body types.',
-        learning_outcomes: 'Measure and draw standing, seated and foreshortened figures in correct proportion.',
+        summaryAm: 'ለአዋቂዎች፣ ለልጆች እና ለተለያዩ የሰውነት ዓይነቶች በጭንቅላት መለኪያ የተመሠረቱ ሕጎች።',
+        learningOutcomes: 'Measure and draw standing, seated and foreshortened figures in correct proportion.',
         deliverables: 'Proportion chart (front/side/back) + 3 figure studies from reference.',
-        criteria: [c('Proportional accuracy', 40), c('Measuring method shown', 25), c('Line quality', 20), c('Presentation', 15)],
-      },
-      {
-        title: 'Skeletal Structure', slug: 'skeletal-structure',
+        evaluationCriteria: [c('Proportional accuracy', 40), c('Measuring method shown', 25), c('Line quality', 20), c('Presentation', 15)] },
+      { title: 'Skeletal Structure', titleAm: 'የአጽም አወቃቀር', slug: 'skeletal-structure',
         summary: 'The skeleton as the scaffold of every pose.',
-        learning_outcomes: 'Draw the major bones from memory and place the skeleton inside any pose.',
+        summaryAm: 'አጽም — የእያንዳንዱ አቋም መሠረት።',
+        learningOutcomes: 'Draw the major bones from memory and place the skeleton inside any pose.',
         deliverables: 'Skeleton drawn from memory (front & side) + 2 poses with skeleton overlay.',
-        criteria: [c('Anatomical accuracy', 40), c('Correct placement in pose', 30), c('Clarity', 15), c('Presentation', 15)],
-      },
-      {
-        title: 'Muscle Landmarks', slug: 'muscle-landmarks',
+        evaluationCriteria: [c('Anatomical accuracy', 40), c('Correct placement in pose', 30), c('Clarity', 15), c('Presentation', 15)] },
+      { title: 'Muscle Landmarks', titleAm: 'የጡንቻ መለያ ምልክቶች', slug: 'muscle-landmarks',
         summary: 'Key surface muscles and bony landmarks that shape the figure.',
-        learning_outcomes: 'Identify and render major muscle groups and landmarks that affect the surface form.',
+        summaryAm: 'የሰውነትን ቅርጽ የሚወስኑ ዋና ዋና ጡንቻዎች እና የአጥንት ምልክቶች።',
+        learningOutcomes: 'Identify and render major muscle groups and landmarks that affect the surface form.',
         deliverables: 'Écorché study of torso and limbs + one shaded figure with landmarks labelled.',
-        criteria: [c('Landmark accuracy', 35), c('Muscle form & volume', 30), c('Tonal rendering', 20), c('Labelling', 15)],
-      },
-      {
-        title: 'Gestural Sketching', slug: 'gesture',
+        evaluationCriteria: [c('Landmark accuracy', 35), c('Muscle form & volume', 30), c('Tonal rendering', 20), c('Labelling', 15)] },
+      { title: 'Gestural Sketching', titleAm: 'የእንቅስቃሴ ንድፍ (ጄስቸር)', slug: 'gesture',
         summary: 'Capture life and movement in 30-second to 5-minute poses.',
-        learning_outcomes: 'Find the line of action and rhythm of a pose quickly and loosely.',
+        summaryAm: 'ከ30 ሰከንድ እስከ 5 ደቂቃ በሚቆዩ አቋሞች ሕይወትን እና እንቅስቃሴን መያዝ።',
+        learningOutcomes: 'Find the line of action and rhythm of a pose quickly and loosely.',
         deliverables: '40 timed gesture drawings (30s / 1min / 2min / 5min) on newsprint or A3.',
-        criteria: [c('Line of action & rhythm', 40), c('Energy & economy of line', 30), c('Proportion within gesture', 15), c('Volume of work completed', 15)],
-      },
+        evaluationCriteria: [c('Line of action & rhythm', 40), c('Energy & economy of line', 30), c('Proportion within gesture', 15), c('Volume of work completed', 15)] },
     ],
   },
 ];
 
-export function seed() {
-  const insertCat = db.prepare('INSERT OR IGNORE INTO categories (title, slug, description, sort_order) VALUES (?,?,?,?)');
-  const insertCourse = db.prepare(`INSERT OR IGNORE INTO courses
-    (category_id, title, slug, summary, learning_outcomes, deliverables, evaluation_criteria, price_etb, sort_order)
-    VALUES (?,?,?,?,?,?,?,?,?)`);
+const DEFAULT_SETTINGS = {
+  subscriptionDiscountPercent: 40,
+  subscriptionFixedPriceEtb: 0,
+  sessionPriceOnlineEtb: 0,
+  sessionPriceInPersonEtb: 0,
+  cbeAccountName: '',
+  cbeAccountNumber: '',
+  telebirrName: '',
+  telebirrNumber: '+251913516032',
+};
 
-  db.transaction(() => {
-    CURRICULUM.forEach((cat, i) => {
-      insertCat.run(cat.title, cat.slug, cat.description, i);
-      const catId = db.prepare('SELECT id FROM categories WHERE slug = ?').get(cat.slug).id;
-      cat.courses.forEach((co, j) =>
-        insertCourse.run(catId, co.title, co.slug, co.summary, co.learning_outcomes, co.deliverables,
-          JSON.stringify(co.criteria), DEFAULT_PRICE, j));
-    });
-
-    if (!db.prepare('SELECT 1 FROM contact_info').get()) {
-      const ins = db.prepare('INSERT INTO contact_info (kind, label, value, sort_order) VALUES (?,?,?,?)');
-      ins.run('email', 'Email', 'Artistabrham@gmail.com', 0);
-      ins.run('phone', 'Phone', '+251913516032', 1);
-      ins.run('telegram', 'Telegram', '@ArtistAbrham', 2);
+export async function seed() {
+  for (const [i, cat] of CURRICULUM.entries()) {
+    const { courses, ...catData } = cat;
+    let category = await Category.findOne({ slug: cat.slug });
+    if (!category) category = await Category.create({ ...catData, sortOrder: i });
+    for (const [j, course] of courses.entries()) {
+      await Course.updateOne({ slug: course.slug }, { $setOnInsert: { ...course, category: category._id, sortOrder: j, priceEtb: 0, isFree: false, isPublished: true } }, { upsert: true });
     }
-    if (!db.prepare('SELECT 1 FROM submission_links').get()) {
-      const ins = db.prepare('INSERT INTO submission_links (kind, label, url, is_default) VALUES (?,?,?,?)');
-      ins.run('telegram', 'Send on Telegram', 'https://t.me/ArtistAbrham', 1);
-      ins.run('email', 'Send by email', 'mailto:Artistabrham@gmail.com', 0);
-    }
-    const defaults = {
-      subscription_discount_percent: 40,
-      subscription_fixed_price_etb: 0,
-      session_price_online_etb: 0,
-      session_price_in_person_etb: 0,
-      cbe_account_name: '',
-      cbe_account_number: '',
-      telebirr_name: '',
-      telebirr_number: '+251913516032',
-    };
-    for (const [k, v] of Object.entries(defaults)) if (getSetting(k) === null) setSetting(k, v);
-  })();
+  }
 
-  if (!db.prepare("SELECT 1 FROM users WHERE role = 'admin'").get()) {
-    if (!config.admin.password || config.admin.password.startsWith('change-me')) {
-      console.warn('⚠ Set ADMIN_PASSWORD in .env to create the admin account.');
+  if (!(await ContactInfo.exists({}))) {
+    await ContactInfo.insertMany([
+      { kind: 'email', label: 'Email', value: 'Artistabrham@gmail.com', sortOrder: 0 },
+      { kind: 'phone', label: 'Phone', value: '+251913516032', sortOrder: 1 },
+      { kind: 'telegram', label: 'Telegram', value: '@ArtistAbrham', sortOrder: 2 },
+    ]);
+  }
+  if (!(await SubmissionLink.exists({}))) {
+    await SubmissionLink.insertMany([
+      { kind: 'telegram', label: 'Telegram', url: 'https://t.me/ArtistAbrham', isDefault: true },
+      { kind: 'email', label: 'Email', url: 'mailto:Artistabrham@gmail.com', isDefault: false },
+    ]);
+  }
+  for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+    await Setting.updateOne({ key }, { $setOnInsert: { key, value } }, { upsert: true });
+  }
+
+  // First admin account (from ADMIN_EMAIL / ADMIN_PASSWORD). More admins: set role "admin" in Atlas.
+  if (!(await User.exists({ role: /^admin$/i }))) {
+    if (!config.admin.password || config.admin.password.length < 8) {
+      console.warn('⚠ Set ADMIN_PASSWORD (8+ characters) to create the admin account.');
     } else {
-      db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?,?,?, 'admin')")
-        .run(config.admin.name, config.admin.email, bcrypt.hashSync(config.admin.password, 12));
-      console.log(`✔ Admin account created for ${config.admin.email}`);
+      const existing = await User.findOne({ email: config.admin.email });
+      if (existing) await User.updateOne({ _id: existing._id }, { role: 'admin' });
+      else await User.create({ name: config.admin.name, email: config.admin.email, role: 'admin', passwordHash: await bcrypt.hash(config.admin.password, 12) });
+      console.log(`✔ Admin account ready for ${config.admin.email}`);
     }
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('seed.js')) {
-  seed();
+// `npm run seed` runs this file directly
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const { connectDB } = await import('./db.js');
+  const mongoose = (await import('mongoose')).default;
+  await connectDB();
+  await seed();
   console.log('✔ Seed complete');
+  await mongoose.disconnect();
 }

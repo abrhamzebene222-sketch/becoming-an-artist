@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Amharic (Ethiopic) text needs a little more line height to read comfortably */
+html[lang='am'] body { line-height: 1.65; }
+
 @layer components {
   .card { @apply bg-ink-panel border border-line rounded-2xl; }
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed; }
@@ -13,4 +16,5 @@
   .eyebrow { @apply text-xs uppercase tracking-widest text-teal-soft; }
   .nav-link { @apply flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl text-muted-soft hover:text-white hover:bg-ink-panel; }
   .nav-link.active { @apply bg-teal-active text-white font-semibold; }
+  .chip { @apply inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border cursor-pointer select-none text-sm; }
 }

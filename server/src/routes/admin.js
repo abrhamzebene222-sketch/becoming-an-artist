@@ -1,222 +1,299 @@
-// Instructor / Admin API
+// Instructor / Admin API — every route requires role "admin" (read live from MongoDB).
 import { Router } from 'express';
-import path from 'node:path';
-import { db, pricing, getSetting, setSetting } from '../db.js';
-import { config } from '../config.js';
+import mongoose from 'mongoose';
+import {
+  User, Category, Course, Lesson, Enrollment, Subscription, Payment, Booking, CourseRequest,
+  TeacherApplication, Notification, ContactInfo, SubmissionLink,
+} from '../models/index.js';
 import { requireAdmin } from '../auth.js';
 import { notifyUser, notifyAllStudents } from '../notify.js';
-import { signUpload, findAsset, isConfigured } from '../cloudinary.js';
+import { fail } from '../i18n.js';
+import { ah, pricing, getSetting, setSetting, slugify } from '../lib.js';
+import { signUpload, findAsset, isConfigured, receiptUrl } from '../cloudinary.js';
 
 const router = Router();
 router.use(requireAdmin);
+const validId = (id) => mongoose.isValidObjectId(id);
 
 // ---------- Overview ----------
-router.get('/overview', (_req, res) => res.json({
-  pendingPayments: db.prepare("SELECT COUNT(*) n FROM payments WHERE status = 'pending'").get().n,
-  bookingRequests: db.prepare("SELECT COUNT(*) n FROM bookings WHERE status = 'requested'").get().n,
-  openCourseRequests: db.prepare("SELECT COUNT(*) n FROM course_requests WHERE status = 'open'").get().n,
-  activeSubscribers: db.prepare("SELECT COUNT(DISTINCT user_id) n FROM subscriptions WHERE datetime(ends_at) > datetime('now')").get().n,
-  students: db.prepare("SELECT COUNT(*) n FROM users WHERE role = 'student'").get().n,
+router.get('/overview', ah(async (_req, res) => res.json({
+  pendingPayments: await Payment.countDocuments({ status: 'pending' }),
+  bookingRequests: await Booking.countDocuments({ status: 'requested' }),
+  openCourseRequests: await CourseRequest.countDocuments({ status: 'open' }),
+  newTeacherApplications: await TeacherApplication.countDocuments({ status: 'new' }),
+  activeSubscribers: (await Subscription.distinct('user', { endsAt: { $gt: new Date() } })).length,
+  students: await User.countDocuments({ role: { $not: /^admin$/i } }),
+})));
+
+// ---------- Users & roles (same effect as editing `role` in Atlas Data Explorer) ----------
+router.get('/users', ah(async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  const filter = q ? { $or: [{ name: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }, { email: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }] } : {};
+  res.json(await User.find(filter).sort({ createdAt: -1 }).limit(200));
+}));
+
+router.patch('/users/:id/role', ah(async (req, res) => {
+  const role = req.body?.role === 'admin' ? 'admin' : 'student';
+  if (!validId(req.params.id)) return fail(req, res, 404, 'notFound');
+  if (req.params.id === req.user.id && role !== 'admin') return fail(req, res, 400, 'invalidDecision'); // can't demote yourself
+  await User.updateOne({ _id: req.params.id }, { role });
+  res.json({ ok: true });
 }));
 
 // ---------- Payments ----------
-router.get('/payments', (req, res) => {
-  const status = req.query.status || 'pending';
-  res.json(db.prepare(`SELECT p.*, u.name AS student_name, u.email AS student_email, c.title AS course_title
-    FROM payments p JOIN users u ON u.id = p.user_id LEFT JOIN courses c ON c.id = p.course_id
-    WHERE p.status = ? ORDER BY p.id DESC`).all(status));
-});
+router.get('/payments', ah(async (req, res) => {
+  const status = ['pending', 'approved', 'rejected'].includes(req.query.status) ? req.query.status : 'pending';
+  const list = await Payment.find({ status }).sort({ createdAt: -1 }).limit(200)
+    .populate('user', 'name email phone').populate('course', 'title titleAm');
+  res.json(list.map((p) => ({ ...p.toJSON(), receiptUrl: receiptUrl(p.receiptPublicId) })));
+}));
 
-// Receipt images are only ever served to admins
-router.get('/payments/:id/screenshot', (req, res) => {
-  const p = db.prepare('SELECT screenshot_file FROM payments WHERE id = ?').get(req.params.id);
-  if (!p) return res.status(404).end();
-  res.sendFile(path.join(config.receiptsDir, path.basename(p.screenshot_file)));
-});
-
-router.post('/payments/:id/review', (req, res) => {
+router.post('/payments/:id/review', ah(async (req, res) => {
   const { decision, note } = req.body || {};
-  const p = db.prepare("SELECT * FROM payments WHERE id = ? AND status = 'pending'").get(req.params.id);
-  if (!p) return res.status(404).json({ error: 'Payment not found or already reviewed.' });
-  if (!['approved', 'rejected'].includes(decision)) return res.status(400).json({ error: 'Invalid decision.' });
+  if (!['approved', 'rejected'].includes(decision)) return fail(req, res, 400, 'invalidDecision');
+  if (!validId(req.params.id)) return fail(req, res, 404, 'paymentReviewed');
+  const p = await Payment.findOneAndUpdate(
+    { _id: req.params.id, status: 'pending' },
+    { status: decision, adminNote: note || undefined, reviewedAt: new Date() },
+    { new: true },
+  );
+  if (!p) return fail(req, res, 404, 'paymentReviewed');
 
-  db.transaction(() => {
-    db.prepare("UPDATE payments SET status = ?, admin_note = ?, reviewed_at = datetime('now') WHERE id = ?").run(decision, note || null, p.id);
-    if (decision !== 'approved') return;
+  if (decision === 'approved') {
     if (p.purpose === 'course') {
-      db.prepare('INSERT OR IGNORE INTO enrollments (user_id, course_id, payment_id) VALUES (?,?,?)').run(p.user_id, p.course_id, p.id);
+      await Enrollment.updateOne({ user: p.user, course: p.course }, { $setOnInsert: { user: p.user, course: p.course, payment: p._id } }, { upsert: true });
     } else if (p.purpose === 'subscription') {
-      const last = db.prepare("SELECT MAX(ends_at) e FROM subscriptions WHERE user_id = ? AND datetime(ends_at) > datetime('now')").get(p.user_id).e;
-      const start = last || new Date().toISOString();
-      db.prepare("INSERT INTO subscriptions (user_id, payment_id, starts_at, ends_at) VALUES (?,?,?, datetime(?, '+1 month'))").run(p.user_id, p.id, start, start);
+      const current = await Subscription.findOne({ user: p.user, endsAt: { $gt: new Date() } }).sort({ endsAt: -1 });
+      const start = current ? current.endsAt : new Date();
+      const end = new Date(start); end.setMonth(end.getMonth() + 1);
+      await Subscription.create({ user: p.user, payment: p._id, startsAt: start, endsAt: end });
     } else if (p.purpose === 'session') {
-      db.prepare("UPDATE bookings SET status = 'paid' WHERE id = ?").run(p.booking_id);
+      await Booking.updateOne({ _id: p.booking }, { status: 'paid' });
     }
-  })();
-
-  const what = p.purpose === 'course' ? 'Your course is now unlocked.' : p.purpose === 'subscription' ? 'All courses are unlocked for one month.' : 'Your 1-on-1 session is confirmed.';
-  notifyUser(p.user_id, decision === 'approved'
-    ? { type: 'payment_approved', title: 'Payment approved', body: what, link: p.purpose === 'session' ? '/sessions' : '/enrolled' }
-    : { type: 'payment_rejected', title: 'Payment could not be verified', body: note || 'Please check the reference ID and try again.', link: '/enrolled#payments' });
+    await notifyUser(p.user, {
+      type: 'payment_approved', params: { purpose: p.purpose },
+      title: 'Payment approved', body: 'Your access is unlocked.', link: p.purpose === 'session' ? '/sessions' : '/enrolled',
+    });
+  } else {
+    await notifyUser(p.user, {
+      type: 'payment_rejected', params: { note: note || '' },
+      title: 'Payment could not be verified', body: note || '', link: '/enrolled#payments',
+    });
+  }
   res.json({ ok: true });
-});
+}));
 
 // ---------- 1-on-1 bookings ----------
-router.get('/bookings', (_req, res) => res.json(db.prepare(`SELECT b.*, u.name AS student_name, u.email AS student_email, u.phone AS student_phone
-  FROM bookings b JOIN users u ON u.id = b.user_id ORDER BY CASE b.status WHEN 'requested' THEN 0 ELSE 1 END, b.preferred_at`).all()));
+router.get('/bookings', ah(async (_req, res) => {
+  const list = await Booking.find().sort({ preferredAt: 1 }).populate('user', 'name email phone');
+  const order = { requested: 0, approved: 1, paid: 2, completed: 3, rejected: 4 };
+  res.json(list.sort((a, b) => order[a.status] - order[b.status]));
+}));
 
-router.post('/bookings/:id/review', (req, res) => {
+router.post('/bookings/:id/review', ah(async (req, res) => {
   const { decision, priceEtb, message } = req.body || {};
-  const b = db.prepare('SELECT * FROM bookings WHERE id = ?').get(req.params.id);
-  if (!b) return res.status(404).json({ error: 'Booking not found.' });
+  if (!validId(req.params.id)) return fail(req, res, 404, 'notFound');
+  const b = await Booking.findById(req.params.id);
+  if (!b) return fail(req, res, 404, 'notFound');
   if (decision === 'approved') {
-    const price = Number(priceEtb ?? (b.mode === 'online' ? pricing().sessionPriceOnline : pricing().sessionPriceInPerson));
-    db.prepare("UPDATE bookings SET status = 'approved', price_etb = ?, admin_message = ? WHERE id = ?").run(price, message || null, b.id);
-    notifyUser(b.user_id, { type: 'booking_approved', title: '1-on-1 session approved', body: `Pay ${price} ETB to confirm your slot.`, link: '/sessions' });
+    const p = await pricing();
+    const price = Number(priceEtb ?? (b.mode === 'online' ? p.sessionPriceOnline : p.sessionPriceInPerson)) || 0;
+    Object.assign(b, { status: 'approved', priceEtb: price, adminMessage: message || undefined });
+    await b.save();
+    await notifyUser(b.user, { type: 'booking_approved', params: { price }, title: '1-on-1 session approved', body: `${price} ETB`, link: '/sessions' });
   } else if (['rejected', 'completed'].includes(decision)) {
-    db.prepare('UPDATE bookings SET status = ?, admin_message = ? WHERE id = ?').run(decision, message || null, b.id);
-    if (decision === 'rejected') notifyUser(b.user_id, { type: 'booking_rejected', title: '1-on-1 request declined', body: message || 'Please pick another time.', link: '/sessions' });
-  } else return res.status(400).json({ error: 'Invalid decision.' });
+    Object.assign(b, { status: decision, adminMessage: message || b.adminMessage });
+    await b.save();
+    if (decision === 'rejected') await notifyUser(b.user, { type: 'booking_rejected', params: { note: message || '' }, title: '1-on-1 request declined', body: message || '', link: '/sessions' });
+  } else return fail(req, res, 400, 'invalidDecision');
   res.json({ ok: true });
-});
+}));
 
 // ---------- Course requests ----------
-router.get('/course-requests', (_req, res) => res.json(db.prepare(`SELECT r.*, u.name AS student_name, u.email AS student_email
-  FROM course_requests r JOIN users u ON u.id = r.user_id ORDER BY r.id DESC`).all()));
-router.patch('/course-requests/:id', (req, res) => {
-  db.prepare('UPDATE course_requests SET status = ? WHERE id = ?').run(req.body.status, req.params.id);
-  res.json({ ok: true });
-});
+router.get('/course-requests', ah(async (_req, res) =>
+  res.json(await CourseRequest.find().sort({ createdAt: -1 }).populate('user', 'name email'))));
 
-// ---------- Curriculum: categories, courses, lessons ----------
-router.get('/curriculum', (_req, res) => {
-  const cats = db.prepare('SELECT * FROM categories ORDER BY sort_order, id').all();
-  const courses = db.prepare('SELECT * FROM courses ORDER BY sort_order, id').all();
-  const lessons = db.prepare('SELECT * FROM lessons ORDER BY sort_order, id').all();
+router.patch('/course-requests/:id', ah(async (req, res) => {
+  if (!validId(req.params.id)) return fail(req, res, 404, 'notFound');
+  await CourseRequest.updateOne({ _id: req.params.id }, { status: req.body.status }, { runValidators: true });
+  res.json({ ok: true });
+}));
+
+// ---------- Teacher applications ----------
+router.get('/teacher-applications', ah(async (req, res) => {
+  const filter = req.query.status ? { status: req.query.status } : {};
+  res.json(await TeacherApplication.find(filter).sort({ createdAt: -1 }));
+}));
+
+router.patch('/teacher-applications/:id', ah(async (req, res) => {
+  if (!validId(req.params.id)) return fail(req, res, 404, 'notFound');
+  const { status, adminNote } = req.body || {};
+  await TeacherApplication.updateOne({ _id: req.params.id }, { ...(status ? { status } : {}), ...(adminNote !== undefined ? { adminNote } : {}) }, { runValidators: true });
+  res.json({ ok: true });
+}));
+
+// ---------- Curriculum ----------
+router.get('/curriculum', ah(async (_req, res) => {
+  const [cats, courses, lessons] = await Promise.all([
+    Category.find().sort({ sortOrder: 1, createdAt: 1 }),
+    Course.find().sort({ sortOrder: 1, createdAt: 1 }),
+    Lesson.find().sort({ sortOrder: 1, createdAt: 1 }),
+  ]);
   res.json(cats.map((cat) => ({
-    ...cat,
-    courses: courses.filter((c) => c.category_id === cat.id).map((c) => ({
-      ...c, evaluation_criteria: JSON.parse(c.evaluation_criteria || '[]'),
-      lessons: lessons.filter((l) => l.course_id === c.id),
+    ...cat.toJSON(),
+    courses: courses.filter((c) => String(c.category) === String(cat._id)).map((c) => ({
+      ...c.toJSON(), category: String(c.category), submissionLink: c.submissionLink ? String(c.submissionLink) : '',
+      lessons: lessons.filter((l) => String(l.course) === String(c._id)),
     })),
   })));
-});
+}));
 
-const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+router.post('/categories', ah(async (req, res) => {
+  const { title, titleAm, description } = req.body || {};
+  if (!title?.trim()) return fail(req, res, 400, 'applicationFields');
+  const last = await Category.findOne().sort({ sortOrder: -1 });
+  const cat = await Category.create({ title: title.trim(), titleAm, description, slug: `${slugify(title)}-${Date.now().toString(36)}`, sortOrder: (last?.sortOrder ?? 0) + 1 });
+  res.json({ id: cat.id });
+}));
 
-router.post('/categories', (req, res) => {
-  const { title, description } = req.body;
-  const info = db.prepare('INSERT INTO categories (title, slug, description, sort_order) VALUES (?,?,?, (SELECT COALESCE(MAX(sort_order),0)+1 FROM categories))')
-    .run(title, slugify(title), description || null);
-  res.json({ id: info.lastInsertRowid });
-});
-
-router.put('/categories/:id', (req, res) => {
-  const { title, description, sort_order } = req.body;
-  db.prepare('UPDATE categories SET title = ?, description = ?, sort_order = COALESCE(?, sort_order) WHERE id = ?').run(title, description, sort_order ?? null, req.params.id);
+router.put('/categories/:id', ah(async (req, res) => {
+  const { title, titleAm, description, sortOrder } = req.body || {};
+  await Category.updateOne({ _id: req.params.id }, { title, titleAm, description, ...(sortOrder != null ? { sortOrder } : {}) });
   res.json({ ok: true });
-});
+}));
 
-router.delete('/categories/:id', (req, res) => { db.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id); res.json({ ok: true }); });
-
-const courseFields = (b) => [b.category_id, b.title, b.summary || '', b.learning_outcomes || '', b.deliverables || '',
-  JSON.stringify(b.evaluation_criteria || []), Number(b.price_etb) || 0, b.submission_link_id || null, b.is_published ? 1 : 0];
-
-router.post('/courses', (req, res) => {
-  const b = req.body;
-  const info = db.prepare(`INSERT INTO courses (category_id, title, summary, learning_outcomes, deliverables, evaluation_criteria, price_etb, submission_link_id, is_published, slug, sort_order)
-    VALUES (?,?,?,?,?,?,?,?,?,?, (SELECT COALESCE(MAX(sort_order),0)+1 FROM courses WHERE category_id = ?))`)
-    .run(...courseFields(b), `${slugify(b.title)}-${Date.now().toString(36)}`, b.category_id);
-  if (b.is_published) {
-    notifyAllStudents({ type: 'new_course', title: 'New course added', body: b.title, link: '/catalog' });
-  }
-  res.json({ id: info.lastInsertRowid });
-});
-
-router.put('/courses/:id', (req, res) => {
-  const before = db.prepare('SELECT is_published, title FROM courses WHERE id = ?').get(req.params.id);
-  if (!before) return res.status(404).json({ error: 'Course not found.' });
-  db.prepare(`UPDATE courses SET category_id=?, title=?, summary=?, learning_outcomes=?, deliverables=?, evaluation_criteria=?,
-    price_etb=?, submission_link_id=?, is_published=? WHERE id = ?`).run(...courseFields(req.body), req.params.id);
-  if (!before.is_published && req.body.is_published) {
-    notifyAllStudents({ type: 'new_course', title: 'New course added', body: req.body.title, link: '/catalog' });
-  }
+router.delete('/categories/:id', ah(async (req, res) => {
+  const courses = await Course.find({ category: req.params.id }, '_id');
+  await Lesson.deleteMany({ course: { $in: courses.map((c) => c._id) } });
+  await Course.deleteMany({ category: req.params.id });
+  await Category.deleteOne({ _id: req.params.id });
   res.json({ ok: true });
+}));
+
+const courseFields = (b) => ({
+  category: b.category,
+  title: String(b.title || '').trim(),
+  titleAm: b.titleAm || '',
+  summary: b.summary || '',
+  summaryAm: b.summaryAm || '',
+  learningOutcomes: b.learningOutcomes || '',
+  deliverables: b.deliverables || '',
+  evaluationCriteria: (b.evaluationCriteria || []).filter((k) => k.criterion).map((k) => ({ criterion: k.criterion, weight: Number(k.weight) || 0 })),
+  isFree: !!b.isFree,
+  priceEtb: b.isFree ? 0 : Math.max(0, Number(b.priceEtb) || 0),
+  submissionLink: validId(b.submissionLink) ? b.submissionLink : null,
+  isPublished: !!b.isPublished,
 });
 
-router.delete('/courses/:id', (req, res) => { db.prepare('DELETE FROM courses WHERE id = ?').run(req.params.id); res.json({ ok: true }); });
+const announce = (course) => notifyAllStudents({
+  type: 'course_new', params: { title: course.title, titleAm: course.titleAm, slug: course.slug, isFree: course.isFree },
+  title: 'New course added', body: course.title, link: `/courses/${course.slug}`,
+});
+
+router.post('/courses', ah(async (req, res) => {
+  const data = courseFields(req.body || {});
+  if (!data.title || !validId(data.category)) return fail(req, res, 400, 'applicationFields');
+  const last = await Course.findOne({ category: data.category }).sort({ sortOrder: -1 });
+  const course = await Course.create({ ...data, slug: `${slugify(data.title)}-${Date.now().toString(36)}`, sortOrder: (last?.sortOrder ?? 0) + 1 });
+  if (course.isPublished) await announce(course);
+  res.json({ id: course.id, slug: course.slug });
+}));
+
+router.put('/courses/:id', ah(async (req, res) => {
+  if (!validId(req.params.id)) return fail(req, res, 404, 'courseNotFound');
+  const before = await Course.findById(req.params.id);
+  if (!before) return fail(req, res, 404, 'courseNotFound');
+  const data = courseFields(req.body || {});
+  const wasPublished = before.isPublished;
+  Object.assign(before, data);
+  await before.save();
+  if (data.isPublished && !wasPublished) await announce(before); // notify students only when first published
+  res.json({ ok: true });
+}));
+
+router.delete('/courses/:id', ah(async (req, res) => {
+  await Lesson.deleteMany({ course: req.params.id });
+  await Enrollment.deleteMany({ course: req.params.id });
+  await Course.deleteOne({ _id: req.params.id });
+  res.json({ ok: true });
+}));
 
 // ---------- Lessons on Cloudinary ----------
-// 1) Browser asks for an upload signature, 2) uploads the file straight to Cloudinary,
-// 3) registers the resulting public ID here as a lesson.
 router.post('/cloudinary/sign', (req, res) => {
-  if (!isConfigured()) return res.status(503).json({ error: 'Add your Cloudinary keys to server/.env first.' });
+  if (!isConfigured()) return fail(req, res, 503, 'cloudinaryKeys');
   res.json(signUpload(req.body?.kind === 'pdf' ? 'pdf' : 'video'));
 });
 
-router.post('/lessons', async (req, res) => {
-  const { course_id, title, public_id, kind, is_preview } = req.body || {};
-  if (!course_id || !title?.trim() || !public_id?.trim() || !['video', 'pdf'].includes(kind)) {
-    return res.status(400).json({ error: 'Course, title, file and type are required.' });
-  }
+router.post('/lessons', ah(async (req, res) => {
+  const { course, title, publicId, kind, isPreview } = req.body || {};
+  if (!validId(course) || !title?.trim() || !publicId?.trim() || !['video', 'pdf'].includes(kind)) return fail(req, res, 400, 'lessonFields');
   const resourceType = kind === 'video' ? 'video' : 'image';
-  const asset = await findAsset(public_id.trim(), resourceType);
-  if (!asset) return res.status(400).json({ error: `No ${kind} with that public ID was found in your Cloudinary account.` });
-  const info = db.prepare(`INSERT INTO lessons (course_id, title, kind, cloud_public_id, cloud_resource_type, cloud_delivery_type, bytes, duration_sec, is_preview, sort_order)
-    VALUES (?,?,?,?,?,?,?,?,?, (SELECT COALESCE(MAX(sort_order),0)+1 FROM lessons WHERE course_id = ?))`)
-    .run(course_id, title.trim(), kind, public_id.trim(), resourceType, asset.deliveryType, asset.bytes, asset.duration, is_preview ? 1 : 0, course_id);
-  res.json({ id: info.lastInsertRowid, deliveryType: asset.deliveryType });
-});
-
-router.put('/lessons/:id', (req, res) => {
-  const { title, is_preview, sort_order } = req.body;
-  db.prepare('UPDATE lessons SET title = ?, is_preview = ?, sort_order = COALESCE(?, sort_order) WHERE id = ?').run(title, is_preview ? 1 : 0, sort_order ?? null, req.params.id);
-  res.json({ ok: true });
-});
-
-// Removes the lesson from the course. The file stays in your Cloudinary Media Library (delete it there if you want).
-router.delete('/lessons/:id', (req, res) => { db.prepare('DELETE FROM lessons WHERE id = ?').run(req.params.id); res.json({ ok: true }); });
-
-// ---------- Pricing & settings ----------
-const SETTING_KEYS = ['subscription_discount_percent', 'subscription_fixed_price_etb', 'session_price_online_etb',
-  'session_price_in_person_etb', 'cbe_account_name', 'cbe_account_number', 'telebirr_name', 'telebirr_number'];
-
-router.get('/settings', (_req, res) => {
-  res.json({
-    settings: Object.fromEntries(SETTING_KEYS.map((k) => [k, getSetting(k, '')])),
-    pricing: pricing(),
-    contacts: db.prepare('SELECT * FROM contact_info ORDER BY sort_order, id').all(),
-    submissionLinks: db.prepare('SELECT * FROM submission_links ORDER BY id').all(),
+  const asset = await findAsset(publicId.trim(), resourceType);
+  if (!asset) return fail(req, res, 400, 'assetMissing');
+  const last = await Lesson.findOne({ course }).sort({ sortOrder: -1 });
+  const lesson = await Lesson.create({
+    course, title: title.trim(), kind, cloudPublicId: publicId.trim(), cloudResourceType: resourceType,
+    cloudDeliveryType: asset.deliveryType, bytes: asset.bytes, durationSec: asset.duration, isPreview: !!isPreview,
+    sortOrder: (last?.sortOrder ?? 0) + 1,
   });
-});
+  res.json({ id: lesson.id, deliveryType: asset.deliveryType });
+}));
 
-router.put('/settings', (req, res) => {
-  for (const k of SETTING_KEYS) if (k in req.body) setSetting(k, req.body[k]);
-  res.json({ ok: true, pricing: pricing() });
-});
-
-// Contacts (replace the whole list — simplest for an editable form)
-router.put('/contacts', (req, res) => {
-  const list = Array.isArray(req.body) ? req.body : [];
-  db.transaction(() => {
-    db.prepare('DELETE FROM contact_info').run();
-    const ins = db.prepare('INSERT INTO contact_info (kind, label, value, sort_order) VALUES (?,?,?,?)');
-    list.filter((c) => c.value?.trim()).forEach((c, i) => ins.run(c.kind || 'other', c.label || c.kind, c.value.trim(), i));
-  })();
+router.put('/lessons/:id', ah(async (req, res) => {
+  const { title, isPreview, sortOrder } = req.body || {};
+  await Lesson.updateOne({ _id: req.params.id }, { ...(title ? { title } : {}), isPreview: !!isPreview, ...(sortOrder != null ? { sortOrder } : {}) });
   res.json({ ok: true });
-});
+}));
 
-router.put('/submission-links', (req, res) => {
-  const list = Array.isArray(req.body) ? req.body : [];
-  db.transaction(() => {
-    const keep = list.filter((l) => l.id).map((l) => l.id);
-    db.prepare(`DELETE FROM submission_links WHERE id NOT IN (${keep.map(() => '?').join(',') || 'NULL'})`).run(...keep);
-    const upd = db.prepare('UPDATE submission_links SET kind=?, label=?, url=?, is_default=? WHERE id=?');
-    const ins = db.prepare('INSERT INTO submission_links (kind, label, url, is_default) VALUES (?,?,?,?)');
-    list.filter((l) => l.url?.trim()).forEach((l) =>
-      l.id ? upd.run(l.kind, l.label, l.url.trim(), l.is_default ? 1 : 0, l.id) : ins.run(l.kind, l.label, l.url.trim(), l.is_default ? 1 : 0));
-  })();
+// Removes the lesson from the course; the file stays in your Cloudinary Media Library.
+router.delete('/lessons/:id', ah(async (req, res) => { await Lesson.deleteOne({ _id: req.params.id }); res.json({ ok: true }); }));
+
+// ---------- Settings, contacts, submission links ----------
+const SETTING_KEYS = ['subscriptionDiscountPercent', 'subscriptionFixedPriceEtb', 'sessionPriceOnlineEtb', 'sessionPriceInPersonEtb',
+  'cbeAccountName', 'cbeAccountNumber', 'telebirrName', 'telebirrNumber'];
+const NUMERIC = new Set(['subscriptionDiscountPercent', 'subscriptionFixedPriceEtb', 'sessionPriceOnlineEtb', 'sessionPriceInPersonEtb']);
+
+router.get('/settings', ah(async (_req, res) => {
+  const settings = {};
+  for (const k of SETTING_KEYS) settings[k] = await getSetting(k, NUMERIC.has(k) ? 0 : '');
+  res.json({
+    settings,
+    pricing: await pricing(),
+    contacts: await ContactInfo.find().sort({ sortOrder: 1 }),
+    submissionLinks: await SubmissionLink.find().sort({ createdAt: 1 }),
+  });
+}));
+
+router.put('/settings', ah(async (req, res) => {
+  for (const k of SETTING_KEYS) {
+    if (k in (req.body || {})) await setSetting(k, NUMERIC.has(k) ? Number(req.body[k]) || 0 : String(req.body[k] ?? ''));
+  }
+  res.json({ ok: true, pricing: await pricing() });
+}));
+
+router.put('/contacts', ah(async (req, res) => {
+  const list = (Array.isArray(req.body) ? req.body : []).filter((c) => c.value?.trim());
+  await ContactInfo.deleteMany({});
+  await ContactInfo.insertMany(list.map((c, i) => ({ kind: c.kind || 'other', label: c.label || c.kind, value: c.value.trim(), sortOrder: i })));
   res.json({ ok: true });
-});
+}));
+
+router.put('/submission-links', ah(async (req, res) => {
+  const list = (Array.isArray(req.body) ? req.body : []).filter((l) => l.url?.trim());
+  const keep = list.filter((l) => validId(l.id)).map((l) => l.id);
+  await SubmissionLink.deleteMany({ _id: { $nin: keep } });
+  for (const l of list) {
+    const data = { kind: l.kind || 'other', label: l.label || l.kind, url: l.url.trim(), isDefault: !!l.isDefault };
+    if (validId(l.id)) await SubmissionLink.updateOne({ _id: l.id }, data);
+    else await SubmissionLink.create(data);
+  }
+  res.json({ ok: true });
+}));
+
+// Clean up old notifications (older than 120 days) when admins load the dashboard
+router.post('/maintenance/cleanup', ah(async (_req, res) => {
+  const r = await Notification.deleteMany({ createdAt: { $lt: new Date(Date.now() - 120 * 864e5) } });
+  res.json({ deleted: r.deletedCount });
+}));
 
 export default router;

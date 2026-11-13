@@ -11,7 +11,7 @@ export default {
         muted: { DEFAULT: '#9DB3AF', soft: '#B9CCC9', dim: '#8AA29E' },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', '"Noto Sans Ethiopic"', 'Nyala', 'system-ui', 'sans-serif'],
         script: ['"Great Vibes"', 'cursive'],
       },
     },

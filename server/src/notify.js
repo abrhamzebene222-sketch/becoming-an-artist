@@ -1,5 +1,6 @@
-// Real-time in-app notifications over Server-Sent Events (no extra services needed).
-import { db } from './db.js';
+// Real-time in-app notifications over Server-Sent Events, stored in MongoDB.
+// Each notification has a `type` + `params`; the app shows it in the reader's language.
+import { Notification, User } from './models/index.js';
 
 const streams = new Map(); // userId -> Set<res>
 
@@ -10,25 +11,30 @@ export function addStream(userId, res) {
 }
 
 function push(userId, notification) {
-  for (const res of streams.get(userId) || []) {
+  for (const res of streams.get(String(userId)) || []) {
     res.write(`event: notification\ndata: ${JSON.stringify(notification)}\n\n`);
   }
 }
 
-/** Save a notification for one user and push it live if they're online. */
-export function notifyUser(userId, { type, title, body = '', link = '' }) {
-  const info = db.prepare('INSERT INTO notifications (user_id, type, title, body, link) VALUES (?,?,?,?,?)')
-    .run(userId, type, title, body, link);
-  push(userId, db.prepare('SELECT * FROM notifications WHERE id = ?').get(info.lastInsertRowid));
+/** notifyUser(id, { type, params, title, body, link }) — title/body are an English fallback. */
+export async function notifyUser(userId, n) {
+  try {
+    const doc = await Notification.create({ user: userId, ...n });
+    push(userId, doc.toJSON());
+  } catch (e) { console.error('notification failed', e.message); }
 }
 
-export const notifyAdmins = (n) =>
-  db.prepare("SELECT id FROM users WHERE role = 'admin'").all().forEach((a) => notifyUser(a.id, n));
+export async function notifyAdmins(n) {
+  const admins = await User.find({ role: /^admin$/i }, '_id').lean();
+  await Promise.all(admins.map((a) => notifyUser(a._id, n)));
+}
 
-export const notifyAllStudents = (n) =>
-  db.prepare("SELECT id FROM users WHERE role = 'student'").all().forEach((s) => notifyUser(s.id, n));
+export async function notifyAllStudents(n) {
+  const students = await User.find({ role: { $not: /^admin$/i } }, '_id').lean();
+  await Promise.all(students.map((s) => notifyUser(s._id, n)));
+}
 
-// Keep proxies/tunnels from closing idle SSE connections
+// Keep proxies (Render, Cloudflare) from closing idle connections
 setInterval(() => {
   for (const set of streams.values()) for (const res of set) res.write(': ping\n\n');
 }, 25_000).unref();

@@ -1,3 +1,9 @@
+# Builds the "Becoming an Artist" Android APK in the cloud (free on GitHub).
+# 1) Push this project to a GitHub repository.
+# 2) Repo → Settings → Secrets and variables → Actions → Variables → New variable:
+#      API_URL = https://becoming-an-artist.onrender.com   (your Render URL)
+# 3) Repo → Actions → "Build Android APK" → Run workflow.
+# 4) Download the APK from the run's "Artifacts" section.
 name: Build Android APK
 
 on:
@@ -25,10 +31,7 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: "platforms;android-34 build-tools;34.0.0"
+      - uses: android-actions/setup-android@v3
 
       - name: Install
         run: npm ci

@@ -1,0 +1,14 @@
+{
+  "name": "becoming-an-artist",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Becoming an Artist — online art education platform (Express + MongoDB Atlas + Cloudinary + React)",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "npm ci --prefix server --omit=dev && npm ci --prefix client --include=dev && npm run build --prefix client",
+    "start": "npm start --prefix server",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "seed": "npm run seed --prefix server"
+  }
+}

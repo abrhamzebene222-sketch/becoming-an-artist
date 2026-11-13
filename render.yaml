@@ -1,0 +1,36 @@
+# Render Blueprint — Dashboard › New › Blueprint › pick this GitHub repo.
+# Secrets marked "sync: false" are typed into the Render dashboard when you create the service.
+services:
+  - type: web
+    name: becoming-an-artist
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: MONGO_URI            # mongodb+srv://USER:PASSWORD@cluster0.aqqojuk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+        sync: false
+      - key: MONGO_DB_NAME
+        value: becoming-an-artist
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: becoming-an-artist
+      - key: ADMIN_NAME
+        value: Abrham
+      - key: ADMIN_EMAIL
+        value: Artistabrham@gmail.com
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: PUBLIC_ORIGIN        # your Render URL, e.g. https://becoming-an-artist.onrender.com
+        sync: false
