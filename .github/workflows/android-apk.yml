@@ -26,9 +26,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Verify Android Build Environment
+      - name: Verify Environment Setup
         run: |
-          echo "Android SDK and environment set up successfully!"
+          echo "Node version:"
+          node -v
+          echo "Java version:"
+          java -version
+          echo "Build environment is ready!"
