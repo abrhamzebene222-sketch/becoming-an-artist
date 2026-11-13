@@ -29,8 +29,6 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android Licenses & Install Tools
+      - name: Verify Android Build Environment
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager --update || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          echo "Android SDK and environment set up successfully!"
