@@ -26,11 +26,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Build Web Client Bundle
+      - name: Install Dependencies & Prepare Capacitor
         run: |
           cd client
           npm install
-          npm run build || true
+          npx cap sync android
 
       - name: Build Android APK with Gradle
         run: |
