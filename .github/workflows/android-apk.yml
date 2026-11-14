@@ -26,10 +26,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Dependencies & Prepare Capacitor
+      - name: Install Dependencies, Build Web App & Sync Capacitor
         run: |
           cd client
           npm install
+          npm run build
           npx cap sync android
 
       - name: Build Android APK with Gradle
