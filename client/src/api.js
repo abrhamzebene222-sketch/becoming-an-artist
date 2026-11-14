@@ -2,8 +2,8 @@ import { createContext, createElement, useCallback, useContext, useEffect, useSt
 import { getLang, translate } from './i18n/index.jsx';
 
 const TOKEN_KEY = 'baa_token';
-// Empty for the website (same server). For the Android app: your Render URL, set in client/.env.android
-export const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+// Set directly to the Render backend URL for the Android app and website
+export const API_BASE = 'https://becoming-an-artist.onrender.com';
 
 export function getToken() { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } }
 function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ } }
