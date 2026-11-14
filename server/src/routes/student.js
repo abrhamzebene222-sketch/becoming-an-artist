@@ -3,7 +3,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import mongoose from 'mongoose';
 import { Course, Enrollment, Payment, Booking, CourseRequest, Notification } from '../models/index.js';
-import { requireAuth, signScoped, verify } from '../auth.js';
+import { requireAuth, optionalAuth, signScoped, verify } from '../auth.js';
 import { notifyAdmins, addStream } from '../notify.js';
 import { fail } from '../i18n.js';
 import { ah, pricing, activeSubscription } from '../lib.js';
@@ -28,7 +28,55 @@ router.get('/notifications/stream', (req, res) => {
   addStream(String(claims.sub), res);
 });
 
-// Only this router's own paths require login (so other /api routes still return 404 properly)
+// ---------- Public Bookings & Course Requests (Guest users allowed) ----------
+router.post('/bookings', optionalAuth, ah(async (req, res) => {
+  const { mode, preferredAt, topic, notes, guestName, guestEmail, guestPhone } = req.body || {};
+  const when = new Date(preferredAt);
+  if (!['online', 'in_person'].includes(mode) || Number.isNaN(when.getTime()) || !topic?.trim()) return fail(req, res, 400, 'bookingFields');
+  
+  const userId = req.user ? req.user.id : undefined;
+  const name = req.user ? req.user.name : (guestName || 'Guest');
+  
+  const b = await Booking.create({ 
+    user: userId, 
+    mode, 
+    preferredAt: when, 
+    topic: topic.trim(), 
+    notes,
+    guestEmail: !userId ? guestEmail : undefined,
+    guestPhone: !userId ? guestPhone : undefined
+  });
+  
+  await notifyAdmins({
+    type: 'booking_new', params: { name, mode, when: when.toISOString() },
+    title: 'New 1-on-1 request', body: `${name} · ${mode}`, link: '/admin/bookings',
+  });
+  res.json({ id: b.id });
+}));
+
+router.post('/course-requests', optionalAuth, ah(async (req, res) => {
+  const { topic, description, level, guestName, guestEmail } = req.body || {};
+  if (!topic?.trim()) return fail(req, res, 400, 'topicRequired');
+  
+  const userId = req.user ? req.user.id : undefined;
+  const name = req.user ? req.user.name : (guestName || 'Guest');
+
+  await CourseRequest.create({ 
+    user: userId, 
+    topic: topic.trim(), 
+    description, 
+    level,
+    guestEmail: !userId ? guestEmail : undefined
+  });
+
+  await notifyAdmins({
+    type: 'course_request_new', params: { name, topic: topic.trim() },
+    title: 'New course request', body: `"${topic.trim()}" — ${name}`, link: '/admin/requests',
+  });
+  res.json({ ok: true });
+}));
+
+// Only this router's other paths require login
 const OWN = /^\/(notifications|me|payments|bookings|course-requests)(\/|$)/;
 router.use((req, res, next) => (OWN.test(req.path) ? requireAuth(req, res, next) : next('router')));
 
@@ -111,32 +159,7 @@ router.post('/payments', upload.single('screenshot'), ah(async (req, res) => {
 router.get('/payments', ah(async (req, res) =>
   res.json(await Payment.find({ user: req.user.id }, '-receiptPublicId').sort({ createdAt: -1 }).populate('course', 'title titleAm'))));
 
-// ---------- 1-on-1 bookings ----------
-router.post('/bookings', ah(async (req, res) => {
-  const { mode, preferredAt, topic, notes } = req.body || {};
-  const when = new Date(preferredAt);
-  if (!['online', 'in_person'].includes(mode) || Number.isNaN(when.getTime()) || !topic?.trim()) return fail(req, res, 400, 'bookingFields');
-  const b = await Booking.create({ user: req.user.id, mode, preferredAt: when, topic: topic.trim(), notes });
-  await notifyAdmins({
-    type: 'booking_new', params: { name: req.user.name, mode, when: when.toISOString() },
-    title: 'New 1-on-1 request', body: `${req.user.name} · ${mode}`, link: '/admin/bookings',
-  });
-  res.json({ id: b.id });
-}));
-
 router.get('/bookings', ah(async (req, res) => res.json(await Booking.find({ user: req.user.id }).sort({ createdAt: -1 }))));
-
-// ---------- Custom course requests ----------
-router.post('/course-requests', ah(async (req, res) => {
-  const { topic, description, level } = req.body || {};
-  if (!topic?.trim()) return fail(req, res, 400, 'topicRequired');
-  await CourseRequest.create({ user: req.user.id, topic: topic.trim(), description, level });
-  await notifyAdmins({
-    type: 'course_request_new', params: { name: req.user.name, topic: topic.trim() },
-    title: 'New course request', body: `"${topic.trim()}" — ${req.user.name}`, link: '/admin/requests',
-  });
-  res.json({ ok: true });
-}));
 
 router.get('/course-requests', ah(async (req, res) => res.json(await CourseRequest.find({ user: req.user.id }).sort({ createdAt: -1 }))));
 

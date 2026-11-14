@@ -47,7 +47,7 @@ function RequireAdmin({ children }) {
 function Home() {
   const { user } = useAuth();
   if (user === undefined) return <Loading />;
-  if (!user) return <Navigate to="/catalog" replace />;            // guests start at the catalog (free courses)
+  if (!user) return <Navigate to="/catalog" replace />;              // guests start at the catalog (free courses)
   if (user.role === 'admin') return <Navigate to="/admin" replace />;
   return <Dashboard />;
 }
@@ -57,16 +57,16 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
 
-      {/* Student portal — some pages are public (catalog, free courses, teacher application) */}
+      {/* Student portal — public access for catalog, courses, sessions, requests, and teacher application */}
       <Route element={<Layout portal="student" />}>
         <Route index element={<Home />} />
         <Route path="catalog" element={<Catalog />} />
         <Route path="courses/:slug" element={<CourseDetail />} />
         <Route path="teach" element={<TeacherApply />} />
         <Route path="subscribe" element={<Subscribe />} />
+        <Route path="sessions" element={<Sessions />} />
+        <Route path="request" element={<RequestCourse />} />
         <Route path="enrolled" element={<RequireLogin><Enrolled /></RequireLogin>} />
-        <Route path="sessions" element={<RequireLogin><Sessions /></RequireLogin>} />
-        <Route path="request" element={<RequireLogin><RequestCourse /></RequireLogin>} />
       </Route>
 
       {/* Admin portal */}
