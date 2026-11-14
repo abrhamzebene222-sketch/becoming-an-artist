@@ -1,0 +1,117 @@
+[
+  {
+    "id": "group-1",
+    "groupNumber": 1,
+    "title": "Drawing Fundamentals",
+    "subtopics": [
+      {
+        "name": "Points & Lines",
+        "description": "Points serve as the fundamental anchors of visual space, while lines define contours, movement, and boundaries, forming the primary skeletal framework of any visual art piece."
+      },
+      {
+        "name": "Formal Structures",
+        "description": "Understanding geometric frameworks and underlying shapes that allow artists to break down complex organic forms into manageable, structurally sound proportions."
+      },
+      {
+        "name": "Volume",
+        "description": "The illusion of mass and three-dimensional depth on a flat surface, achieved through careful manipulation of contours, shading, and spatial awareness."
+      },
+      {
+        "name": "Chiaroscuro: Tone & Light/Shadow",
+        "description": "The artistic contrast between light and dark that creates dramatic focal points, volume, and emotional depth within a drawing or painting."
+      }
+    ]
+  },
+  {
+    "id": "group-2",
+    "groupNumber": 2,
+    "title": "Color Theory",
+    "subtopics": [
+      {
+        "name": "The Color Wheel",
+        "description": "A visual organizational chart of primary, secondary, and tertiary colors that guides harmonious palettes and color mixing decisions."
+      },
+      {
+        "name": "Value Relationships",
+        "description": "The relative lightness or darkness of a color, which dictates contrast, readability, and structural form independent of hue."
+      },
+      {
+        "name": "Temperature",
+        "description": "The emotional and visual division of colors into warm (reds, yellows) and cool (blues, greens) spectrums to create atmospheric depth."
+      },
+      {
+        "name": "Harmonization",
+        "description": "The art of combining colors in pleasing, balanced relationships that evoke specific moods and aesthetic coherence."
+      }
+    ]
+  },
+  {
+    "id": "group-3",
+    "groupNumber": 3,
+    "title": "Composition & Perspective",
+    "subtopics": [
+      {
+        "name": "Linear Perspective",
+        "description": "A mathematical and visual system using horizon lines and vanishing points to render realistic depth and spatial recession on a two-dimensional plane."
+      },
+      {
+        "name": "Focal Points",
+        "description": "Strategic placement and contrast of elements that naturally direct the viewer's eye to the most important part of the artwork."
+      },
+      {
+        "name": "Spatial Tension",
+        "description": "The dynamic interplay and psychological push-and-pull between shapes, negative space, and compositional boundaries."
+      },
+      {
+        "name": "Framing",
+        "description": "Using environmental or structural elements within the artwork to enclose and emphasize the primary subject matter."
+      }
+    ]
+  },
+  {
+    "id": "group-4",
+    "groupNumber": 4,
+    "title": "Human Anatomy & Figure Drawing",
+    "subtopics": [
+      {
+        "name": "Proportions",
+        "description": "The precise mathematical and comparative relationship between different parts of the human body to achieve realistic anatomical harmony."
+      },
+      {
+        "name": "Skeletal Structure",
+        "description": "The underlying bony landmarks that provide posture, rigidity, and the true framework for human form and movement."
+      },
+      {
+        "name": "Muscle Landmarks",
+        "description": "The surface anatomy of muscular groups that flex, stretch, and define the dynamic contours of the human body under various lighting conditions."
+      },
+      {
+        "name": "Gestural Sketching",
+        "description": "Rapid, expressive line work capturing the core energy, movement, and life posture of a living subject in seconds."
+      }
+    ]
+  },
+  {
+    "id": "group-5",
+    "groupNumber": 5,
+    "title": "Iconography",
+    "subtopics": [
+      {
+        "name": "Canon of Proportions",
+        "description": "The sacred, traditional geometric rules governing the spiritual depiction of faces, eyes, and figures in Ethiopian Orthodox sacred art."
+      },
+      {
+        "name": "Traditional Pigments & Preparation",
+        "description": "The ancient methods of extracting natural earth and plant pigments, preparing wooden panels, and binding colors for lasting preservation."
+      },
+      {
+        "name": "Spiritual & Symbolic Geometry",
+        "description": "The underlying mathematical patterns, halos, and structural layouts that convey deep theological meanings and reverence."
+      },
+      {
+        "name": "Halo & Lineament Drafting",
+        "description": "The precise techniques of drawing radiant halos and delicate facial features that define the character and holiness of traditional icons."
+      }
+    ]
+  }
+]
