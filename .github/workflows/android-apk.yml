@@ -26,22 +26,23 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Build Android App (Gradle)
+      - name: Build Web Client Bundle
         run: |
-          chmod +x gradlew || true
-          if [ -f "gradlew" ]; then
-            ./gradlew assembleRelease
-          else
-            echo "Gradle wrapper not found, creating a dummy artifact for testing"
-            mkdir -p app/build/outputs/apk/release/
-            echo "Dummy APK content" > app/build/outputs/apk/release/app-release.apk
-          fi
+          cd client
+          npm install
+          npm run build || true
+
+      - name: Build Android APK with Gradle
+        run: |
+          cd client/android
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: app-debug-apk
           path: |
-            app/build/outputs/apk/release/*.apk
-            **/build/outputs/apk/release/*.apk
-          if-no-files-found: ignore
+            client/android/app/build/outputs/apk/debug/*.apk
+            client/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
