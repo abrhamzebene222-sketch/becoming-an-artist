@@ -1,0 +1,7 @@
+{
+  "appId": "com.becominganartist.app",
+  "appName": "Becoming an Artist",
+  "webDir": "dist",
+  "backgroundColor": "#111B1A",
+  "android": { "allowMixedContent": false }
+}

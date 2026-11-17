@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.env.local
+client/dist/
+client/android/app/src/main/assets/public/
+client/android/.gradle/
+client/android/build/
+client/android/app/build/
+.DS_Store
