@@ -1,5 +1,4 @@
 // Mongoose models for Becoming an Artist.
-// Every model returns `id` (string) instead of `_id` in API responses.
 import mongoose from 'mongoose';
 import express from 'express';
 import path from 'path';
@@ -289,8 +288,6 @@ export const RewardTicket = model('RewardTicket', new Schema({
   decidedVia: String,
   decidedAt: Date,
 }, opts()));
-RewardTicketSchema.index({ user: 1, campaign: 1, shares: 1 }, { unique: true });
-export const RewardTicket = model('RewardTicket', RewardTicketSchema);
 
 export const CreditTransaction = model('CreditTransaction', new Schema({
   user: ref('User', true),
