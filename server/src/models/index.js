@@ -1,6 +1,23 @@
 // Mongoose models for Becoming an Artist.
 // Every model returns `id` (string) instead of `_id` in API responses.
 import mongoose from 'mongoose';
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const app = express();
+app.use(express.json());
+app.use(cors({
+  origin: process.env.PUBLIC_ORIGIN || '*',
+  credentials: true
+}));
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const { Schema, model } = mongoose;
 const ref = (name, required = false) => ({ type: Schema.Types.ObjectId, ref: name, required, index: true });
@@ -13,15 +30,12 @@ const toJSON = {
 const opts = (extra = {}) => ({ timestamps: true, toJSON, toObject: toJSON, ...extra });
 
 // ---------- Users ----------
-// role: 'student' (default) or 'admin'. You can promote a user by editing `role` to "admin"
-// in MongoDB Atlas › Data Explorer › users — the change applies on their next page load.
 const UserSchema = new Schema({
   name: { type: String, required: true, trim: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   phone: { type: String, trim: true },
   passwordHash: { type: String, required: true },
   role: { type: String, default: 'student', lowercase: true, trim: true },
-  // Telegram bot link (two-way sync) + referral credits
   telegramUsername: { type: String, trim: true, default: '' },
   telegramId: { type: String, index: true, sparse: true },
   telegramChatId: { type: String },
@@ -33,8 +47,7 @@ const UserSchema = new Schema({
 UserSchema.virtual('isAdmin').get(function isAdmin() { return String(this.role).toLowerCase() === 'admin'; });
 export const User = model('User', UserSchema);
 
-// ---------- Media reference (an image/file kept on one of the Cloudinary accounts) ----------
-// `account` = 'env' (the .env account) or the id of a CloudinaryAccount document.
+// ---------- Media reference ----------
 export const MediaSchema = new Schema({
   url: String,
   publicId: String,
@@ -43,8 +56,6 @@ export const MediaSchema = new Schema({
 }, { _id: false });
 
 // ---------- Curriculum ----------
-// Recursive tree: a Category with parent = null is a MAJOR group; any category can hold sub-groups
-// (infinitely deep) and courses. Price tags live on the groups (buy a sub-group or a whole major group).
 export const Category = model('Category', new Schema({
   parent: { type: Schema.Types.ObjectId, ref: 'Category', default: null, index: true },
   title: { type: String, required: true, trim: true },
@@ -53,10 +64,10 @@ export const Category = model('Category', new Schema({
   description: String,
   descriptionAm: String,
   sortOrder: { type: Number, default: 0 },
-  isFree: { type: Boolean, default: false },          // every course inside is open to everyone
-  priceEtb: { type: Number, default: 0, min: 0 },     // one-time purchase of the whole group (0 = not sold as a group)
-  monthlyPriceEtb: { type: Number, default: 0, min: 0 }, // monthly subscription base price (0 = use priceEtb)
-  slides: { type: [MediaSchema], default: [] },       // background slideshow (major groups) / cover
+  isFree: { type: Boolean, default: false },
+  priceEtb: { type: Number, default: 0, min: 0 },
+  monthlyPriceEtb: { type: Number, default: 0, min: 0 },
+  slides: { type: [MediaSchema], default: [] },
 }, opts()));
 
 const CriterionSchema = new Schema({ criterion: String, weight: Number }, { _id: false });
@@ -71,7 +82,6 @@ export const Course = model('Course', new Schema({
   learningOutcomes: String,
   deliverables: String,
   evaluationCriteria: { type: [CriterionSchema], default: [] },
-  // Free courses can be watched without an account. Paid courses need login + payment.
   isFree: { type: Boolean, default: false },
   priceEtb: { type: Number, default: 0, min: 0 },
   submissionLink: ref('SubmissionLink'),
@@ -79,7 +89,6 @@ export const Course = model('Course', new Schema({
   sortOrder: { type: Number, default: 0 },
 }, opts()));
 
-// Modular lesson content: alternating text boxes, images and YouTube embeds, in the admin's order.
 const BlockSchema = new Schema({
   type: { type: String, enum: ['text', 'image', 'youtube'], required: true },
   text: String,
@@ -96,9 +105,9 @@ export const Lesson = model('Lesson', new Schema({
   title: { type: String, required: true, trim: true },
   kind: { type: String, enum: ['video', 'pdf', 'blocks'], required: true },
   cloudPublicId: { type: String, required: needsFile },
-  cloudResourceType: { type: String, enum: ['video', 'image'], required: needsFile }, // PDFs are "image" in Cloudinary
-  cloudDeliveryType: { type: String, default: 'authenticated' },                     // authenticated = private
-  cloudAccount: { type: String, default: 'env' },                                   // which Cloudinary account holds the file
+  cloudResourceType: { type: String, enum: ['video', 'image'], required: needsFile },
+  cloudDeliveryType: { type: String, default: 'authenticated' },
+  cloudAccount: { type: String, default: 'env' },
   blocks: { type: [BlockSchema], default: [] },
   bytes: Number,
   durationSec: Number,
@@ -106,12 +115,11 @@ export const Lesson = model('Lesson', new Schema({
   sortOrder: { type: Number, default: 0 },
 }, opts()));
 
-// ---------- Access ----------
+// ---------- Access & Other Models ----------
 const EnrollmentSchema = new Schema({ user: ref('User', true), course: ref('Course', true), payment: ref('Payment') }, opts());
 EnrollmentSchema.index({ user: 1, course: 1 }, { unique: true });
 export const Enrollment = model('Enrollment', EnrollmentSchema);
 
-// Whole-group purchase (or unlocked with referral credit)
 const GroupEnrollmentSchema = new Schema({
   user: ref('User', true), category: ref('Category', true), payment: ref('Payment'),
   source: { type: String, enum: ['payment', 'credit', 'admin'], default: 'payment' },
@@ -119,7 +127,6 @@ const GroupEnrollmentSchema = new Schema({
 GroupEnrollmentSchema.index({ user: 1, category: 1 }, { unique: true });
 export const GroupEnrollment = model('GroupEnrollment', GroupEnrollmentSchema);
 
-// groups = [] → legacy "all paid courses" plan. groups = [ids] → modular group-level monthly plan.
 export const Subscription = model('Subscription', new Schema({
   user: ref('User', true), payment: ref('Payment'),
   groups: { type: [{ type: Schema.Types.ObjectId, ref: 'Category' }], default: [] },
@@ -128,19 +135,18 @@ export const Subscription = model('Subscription', new Schema({
   startsAt: { type: Date, required: true }, endsAt: { type: Date, required: true, index: true },
 }, opts()));
 
-// ---------- Payments (CBE / Telebirr screenshot verification) ----------
 const PaymentSchema = new Schema({
   user: ref('User', true),
   purpose: { type: String, enum: ['course', 'subscription', 'session', 'group', 'group_subscription'], required: true },
   course: ref('Course'),
-  category: ref('Category'),                                           // purpose 'group'
-  groups: { type: [{ type: Schema.Types.ObjectId, ref: 'Category' }], default: [] }, // purpose 'group_subscription'
-  quote: { type: Schema.Types.Mixed },                                 // price breakdown at submit time
+  category: ref('Category'),
+  groups: { type: [{ type: Schema.Types.ObjectId, ref: 'Category' }], default: [] },
+  quote: { type: Schema.Types.Mixed },
   booking: ref('Booking'),
   amountEtb: { type: Number, required: true },
   method: { type: String, enum: ['CBE', 'TELEBIRR'], required: true },
   referenceId: { type: String, required: true, trim: true },
-  receiptPublicId: { type: String, required: true }, // private image on Cloudinary
+  receiptPublicId: { type: String, required: true },
   receiptAccount: { type: String, default: 'env' },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending', index: true },
   adminNote: String,
@@ -149,7 +155,6 @@ const PaymentSchema = new Schema({
 PaymentSchema.index({ method: 1, referenceId: 1 }, { unique: true });
 export const Payment = model('Payment', PaymentSchema);
 
-// ---------- 1-on-1 sessions ----------
 export const Booking = model('Booking', new Schema({
   user: ref('User', true),
   mode: { type: String, enum: ['online', 'in_person'], required: true },
@@ -169,10 +174,8 @@ export const CourseRequest = model('CourseRequest', new Schema({
   status: { type: String, enum: ['open', 'planned', 'declined', 'done'], default: 'open', index: true },
 }, opts()));
 
-// ---------- Teacher applications (no photo upload) ----------
 export const TeacherApplication = model('TeacherApplication', new Schema({
   user: ref('User'),
-  // Personal information
   fullName: { type: String, required: true, trim: true },
   age: { type: Number, required: true, min: 16, max: 100 },
   email: { type: String, required: true, lowercase: true, trim: true },
@@ -180,12 +183,10 @@ export const TeacherApplication = model('TeacherApplication', new Schema({
   education: { type: String, required: true },
   subCity: { type: String, required: true },
   location: { type: String, trim: true },
-  // Professional background
   experience: { type: String, required: true },
   yearsExperience: { type: Number, min: 0, default: 0 },
   portfolioLinks: { type: [String], default: [] },
   portfolioDescription: String,
-  // Teaching preferences
   teachAllCourses: { type: Boolean, default: false },
   courses: { type: [String], default: [] },
   otherSubjects: String,
@@ -198,8 +199,6 @@ export const TeacherApplication = model('TeacherApplication', new Schema({
   adminNote: String,
 }, opts()));
 
-// ---------- Notifications ----------
-// `type` + `params` let the app show each notification in the reader's language.
 export const Notification = model('Notification', new Schema({
   user: ref('User', true),
   type: { type: String, required: true },
@@ -210,7 +209,6 @@ export const Notification = model('Notification', new Schema({
   isRead: { type: Boolean, default: false },
 }, opts()));
 
-// ---------- Editable business info ----------
 export const ContactInfo = model('ContactInfo', new Schema({
   kind: { type: String, enum: ['email', 'phone', 'telegram', 'address', 'website', 'other'], default: 'other' },
   label: String,
@@ -230,8 +228,6 @@ export const Setting = model('Setting', new Schema({
   value: Schema.Types.Mixed,
 }, opts()));
 
-// ---------- Multiple Cloudinary accounts (managed from the Admin dashboard) ----------
-// The API secret is stored encrypted (AES-256-GCM, key derived from JWT_SECRET) and never sent back to the browser.
 export const CloudinaryAccount = model('CloudinaryAccount', new Schema({
   label: { type: String, required: true, trim: true },
   cloudName: { type: String, required: true, trim: true },
@@ -242,9 +238,8 @@ export const CloudinaryAccount = model('CloudinaryAccount', new Schema({
   isActive: { type: Boolean, default: true },
 }, opts({ toJSON: { ...toJSON, transform: (_d, ret) => { ret.id = String(ret._id); delete ret._id; delete ret.apiSecretEnc; return ret; } } })));
 
-// ---------- Promo / announcement boards (3 boards × 2 flipping units) ----------
 const PromoSchema = new Schema({
-  board: { type: Number, enum: [1, 2, 3], required: true },   // 1 news, 2 community/Telegram, 3 referral/sponsored
+  board: { type: Number, enum: [1, 2, 3], required: true },
   slot: { type: Number, enum: [0, 1], required: true },
   title: { type: String, default: '' },
   titleAm: { type: String, default: '' },
@@ -259,27 +254,19 @@ const PromoSchema = new Schema({
 PromoSchema.index({ board: 1, slot: 1 }, { unique: true });
 export const Promo = model('Promo', PromoSchema);
 
-// ---------- Telegram referral / APK sharing / sponsored campaigns ----------
-const MilestoneSchema = new Schema({
-  shares: { type: Number, required: true, min: 1 },
-  rewardEtb: { type: Number, default: 0, min: 0 },    // course credit value
-  rewardText: { type: String, default: '' },          // e.g. sponsored brand reward
-}, { _id: false });
-
 export const ReferralCampaign = model('ReferralCampaign', new Schema({
-  code: { type: String, required: true, unique: true },  // short id used in Telegram deep links
+  code: { type: String, required: true, unique: true },
   kind: { type: String, enum: ['app', 'sponsored'], default: 'app' },
   title: { type: String, required: true, trim: true },
   titleAm: { type: String, default: '' },
   description: { type: String, default: '' },
   sponsorName: { type: String, default: '' },
-  sponsorUrl: { type: String, default: '' },            // partner app / site to promote
-  apkFileId: { type: String, default: '' },             // Telegram file_id (admin sends the APK to the bot with /setapk CODE)
-  milestones: { type: [MilestoneSchema], default: [] },
+  sponsorUrl: { type: String, default: '' },
+  apkFileId: { type: String, default: '' },
+  milestones: { type: [new Schema({ shares: { type: Number, required: true, min: 1 }, rewardEtb: { type: Number, default: 0, min: 0 }, rewardText: { type: String, default: '' } }, { _id: false })], default: [] },
   isActive: { type: Boolean, default: true },
 }, opts()));
 
-// One row per NEW person brought in by a referrer (Telegram user who opened the bot link, or a web sign-up)
 const ReferralShareSchema = new Schema({
   campaign: ref('ReferralCampaign', true),
   referrer: ref('User', true),
@@ -291,30 +278,29 @@ ReferralShareSchema.index({ campaign: 1, telegramId: 1 }, { unique: true, partia
 ReferralShareSchema.index({ campaign: 1, referredUser: 1 }, { unique: true, partialFilterExpression: { referredUser: { $type: 'objectId' } } });
 export const ReferralShare = model('ReferralShare', ReferralShareSchema);
 
-const RewardTicketSchema = new Schema({
+export const RewardTicket = model('RewardTicket', new Schema({
   user: ref('User', true),
   campaign: ref('ReferralCampaign', true),
   shares: { type: Number, required: true },
   rewardEtb: { type: Number, default: 0 },
   rewardText: { type: String, default: '' },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending', index: true },
-  adminMessageId: Number,       // Telegram message in the admin chat (edited when decided)
-  decidedVia: String,           // 'telegram' | 'web'
+  adminMessageId: Number,
+  decidedVia: String,
   decidedAt: Date,
-}, opts());
+}, opts()));
 RewardTicketSchema.index({ user: 1, campaign: 1, shares: 1 }, { unique: true });
 export const RewardTicket = model('RewardTicket', RewardTicketSchema);
 
 export const CreditTransaction = model('CreditTransaction', new Schema({
   user: ref('User', true),
-  amountEtb: { type: Number, required: true },  // + earned, − spent
+  amountEtb: { type: Number, required: true },
   reason: { type: String, enum: ['referral_reward', 'unlock_course', 'unlock_group', 'admin'], required: true },
   ticket: ref('RewardTicket'),
   course: ref('Course'),
   category: ref('Category'),
 }, opts()));
 
-// ---------- Assignment submissions (PDF forwarded to the admin's Telegram) ----------
 export const Assignment = model('Assignment', new Schema({
   user: ref('User'),
   course: ref('Course'),
@@ -328,3 +314,25 @@ export const Assignment = model('Assignment', new Schema({
   telegramStatus: { type: String, enum: ['sent', 'failed', 'not_configured'], default: 'not_configured' },
   telegramError: String,
 }, opts()));
+
+// ---------- Serving Frontend (Static Build) ----------
+app.use(express.static(path.join(__dirname, '../../client/dist')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../../client/dist/index.html'));
+});
+
+// ---------- Database Connection & Server Startup ----------
+const PORT = process.env.PORT || 4000;
+const MONGO_URI = process.env.MONGO_URI;
+
+mongoose.connect(MONGO_URI)
+  .then(() => {
+    console.log('Connected to MongoDB successfully');
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Could not start: Server selection timed out or connection failed.', err);
+  });
