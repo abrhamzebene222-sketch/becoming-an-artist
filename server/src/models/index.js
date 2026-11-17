@@ -1,22 +1,6 @@
 // Mongoose models for Becoming an Artist.
+// Every model returns `id` (string) instead of `_id` in API responses.
 import mongoose from 'mongoose';
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import cors from 'cors';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
-const app = express();
-app.use(express.json());
-app.use(cors({
-  origin: process.env.PUBLIC_ORIGIN || '*',
-  credentials: true
-}));
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const { Schema, model } = mongoose;
 const ref = (name, required = false) => ({ type: Schema.Types.ObjectId, ref: name, required, index: true });
@@ -44,7 +28,7 @@ const UserSchema = new Schema({
   creditEtb: { type: Number, default: 0, min: 0 },
 }, opts());
 UserSchema.virtual('isAdmin').get(function isAdmin() { return String(this.role).toLowerCase() === 'admin'; });
-export const User = mongoose.models.User || model('User', UserSchema);
+export const User = model('User', UserSchema);
 
 // ---------- Media reference ----------
 export const MediaSchema = new Schema({
@@ -55,7 +39,7 @@ export const MediaSchema = new Schema({
 }, { _id: false });
 
 // ---------- Curriculum ----------
-export const Category = mongoose.models.Category || model('Category', new Schema({
+export const Category = model('Category', new Schema({
   parent: { type: Schema.Types.ObjectId, ref: 'Category', default: null, index: true },
   title: { type: String, required: true, trim: true },
   titleAm: { type: String, trim: true, default: '' },
@@ -71,7 +55,7 @@ export const Category = mongoose.models.Category || model('Category', new Schema
 
 const CriterionSchema = new Schema({ criterion: String, weight: Number }, { _id: false });
 
-export const Course = mongoose.models.Course || model('Course', new Schema({
+export const Course = model('Course', new Schema({
   category: ref('Category', true),
   title: { type: String, required: true, trim: true },
   titleAm: { type: String, trim: true, default: '' },
@@ -99,7 +83,7 @@ const BlockSchema = new Schema({
 
 const needsFile = function needsFile() { return this.kind !== 'blocks'; };
 
-export const Lesson = mongoose.models.Lesson || model('Lesson', new Schema({
+export const Lesson = model('Lesson', new Schema({
   course: ref('Course', true),
   title: { type: String, required: true, trim: true },
   kind: { type: String, enum: ['video', 'pdf', 'blocks'], required: true },
@@ -117,16 +101,16 @@ export const Lesson = mongoose.models.Lesson || model('Lesson', new Schema({
 // ---------- Access & Other Models ----------
 const EnrollmentSchema = new Schema({ user: ref('User', true), course: ref('Course', true), payment: ref('Payment') }, opts());
 EnrollmentSchema.index({ user: 1, course: 1 }, { unique: true });
-export const Enrollment = mongoose.models.Enrollment || model('Enrollment', EnrollmentSchema);
+export const Enrollment = model('Enrollment', EnrollmentSchema);
 
 const GroupEnrollmentSchema = new Schema({
   user: ref('User', true), category: ref('Category', true), payment: ref('Payment'),
   source: { type: String, enum: ['payment', 'credit', 'admin'], default: 'payment' },
 }, opts());
 GroupEnrollmentSchema.index({ user: 1, category: 1 }, { unique: true });
-export const GroupEnrollment = mongoose.models.GroupEnrollment || model('GroupEnrollment', GroupEnrollmentSchema);
+export const GroupEnrollment = model('GroupEnrollment', GroupEnrollmentSchema);
 
-export const Subscription = mongoose.models.Subscription || model('Subscription', new Schema({
+export const Subscription = model('Subscription', new Schema({
   user: ref('User', true), payment: ref('Payment'),
   groups: { type: [{ type: Schema.Types.ObjectId, ref: 'Category' }], default: [] },
   lessonCount: Number,
@@ -152,9 +136,9 @@ const PaymentSchema = new Schema({
   reviewedAt: Date,
 }, opts());
 PaymentSchema.index({ method: 1, referenceId: 1 }, { unique: true });
-export const Payment = mongoose.models.Payment || model('Payment', PaymentSchema);
+export const Payment = model('Payment', PaymentSchema);
 
-export const Booking = mongoose.models.Booking || model('Booking', new Schema({
+export const Booking = model('Booking', new Schema({
   user: ref('User', true),
   mode: { type: String, enum: ['online', 'in_person'], required: true },
   preferredAt: { type: Date, required: true },
@@ -165,7 +149,7 @@ export const Booking = mongoose.models.Booking || model('Booking', new Schema({
   adminMessage: String,
 }, opts()));
 
-export const CourseRequest = mongoose.models.CourseRequest || model('CourseRequest', new Schema({
+export const CourseRequest = model('CourseRequest', new Schema({
   user: ref('User', true),
   topic: { type: String, required: true },
   description: String,
@@ -173,7 +157,7 @@ export const CourseRequest = mongoose.models.CourseRequest || model('CourseReque
   status: { type: String, enum: ['open', 'planned', 'declined', 'done'], default: 'open', index: true },
 }, opts()));
 
-export const TeacherApplication = mongoose.models.TeacherApplication || model('TeacherApplication', new Schema({
+export const TeacherApplication = model('TeacherApplication', new Schema({
   user: ref('User'),
   fullName: { type: String, required: true, trim: true },
   age: { type: Number, required: true, min: 16, max: 100 },
@@ -198,7 +182,7 @@ export const TeacherApplication = mongoose.models.TeacherApplication || model('T
   adminNote: String,
 }, opts()));
 
-export const Notification = mongoose.models.Notification || model('Notification', new Schema({
+export const Notification = model('Notification', new Schema({
   user: ref('User', true),
   type: { type: String, required: true },
   params: { type: Schema.Types.Mixed, default: {} },
@@ -208,26 +192,26 @@ export const Notification = mongoose.models.Notification || model('Notification'
   isRead: { type: Boolean, default: false },
 }, opts()));
 
-export const ContactInfo = mongoose.models.ContactInfo || model('ContactInfo', new Schema({
+export const ContactInfo = model('ContactInfo', new Schema({
   kind: { type: String, enum: ['email', 'phone', 'telegram', 'address', 'website', 'other'], default: 'other' },
   label: String,
   value: { type: String, required: true },
   sortOrder: { type: Number, default: 0 },
 }, opts()));
 
-export const SubmissionLink = mongoose.models.SubmissionLink || model('SubmissionLink', new Schema({
+export const SubmissionLink = model('SubmissionLink', new Schema({
   kind: { type: String, enum: ['telegram', 'email', 'google_form', 'other'], default: 'other' },
   label: String,
   url: { type: String, required: true },
   isDefault: { type: Boolean, default: false },
 }, opts()));
 
-export const Setting = mongoose.models.Setting || model('Setting', new Schema({
+export const Setting = model('Setting', new Schema({
   key: { type: String, required: true, unique: true },
   value: Schema.Types.Mixed,
 }, opts()));
 
-export const CloudinaryAccount = mongoose.models.CloudinaryAccount || model('CloudinaryAccount', new Schema({
+export const CloudinaryAccount = model('CloudinaryAccount', new Schema({
   label: { type: String, required: true, trim: true },
   cloudName: { type: String, required: true, trim: true },
   apiKey: { type: String, required: true, trim: true },
@@ -251,9 +235,9 @@ const PromoSchema = new Schema({
   isActive: { type: Boolean, default: true },
 }, opts());
 PromoSchema.index({ board: 1, slot: 1 }, { unique: true });
-export const Promo = mongoose.models.Promo || model('Promo', PromoSchema);
+export const Promo = model('Promo', PromoSchema);
 
-export const ReferralCampaign = mongoose.models.ReferralCampaign || model('ReferralCampaign', new Schema({
+export const ReferralCampaign = model('ReferralCampaign', new Schema({
   code: { type: String, required: true, unique: true },
   kind: { type: String, enum: ['app', 'sponsored'], default: 'app' },
   title: { type: String, required: true, trim: true },
@@ -275,9 +259,9 @@ const ReferralShareSchema = new Schema({
 }, opts());
 ReferralShareSchema.index({ campaign: 1, telegramId: 1 }, { unique: true, partialFilterExpression: { telegramId: { $type: 'string' } } });
 ReferralShareSchema.index({ campaign: 1, referredUser: 1 }, { unique: true, partialFilterExpression: { referredUser: { $type: 'objectId' } } });
-export const ReferralShare = mongoose.models.ReferralShare || model('ReferralShare', ReferralShareSchema);
+export const ReferralShare = model('ReferralShare', ReferralShareSchema);
 
-export const RewardTicket = mongoose.models.RewardTicket || model('RewardTicket', new Schema({
+export const RewardTicket = model('RewardTicket', new Schema({
   user: ref('User', true),
   campaign: ref('ReferralCampaign', true),
   shares: { type: Number, required: true },
@@ -288,8 +272,10 @@ export const RewardTicket = mongoose.models.RewardTicket || model('RewardTicket'
   decidedVia: String,
   decidedAt: Date,
 }, opts()));
+RewardTicketSchema.index({ user: 1, campaign: 1, shares: 1 }, { unique: true });
+export const RewardTicket = model('RewardTicket', RewardTicketSchema);
 
-export const CreditTransaction = mongoose.models.CreditTransaction || model('CreditTransaction', new Schema({
+export const CreditTransaction = model('CreditTransaction', new Schema({
   user: ref('User', true),
   amountEtb: { type: Number, required: true },
   reason: { type: String, enum: ['referral_reward', 'unlock_course', 'unlock_group', 'admin'], required: true },
@@ -298,7 +284,7 @@ export const CreditTransaction = mongoose.models.CreditTransaction || model('Cre
   category: ref('Category'),
 }, opts()));
 
-export const Assignment = mongoose.models.Assignment || model('Assignment', new Schema({
+export const Assignment = model('Assignment', new Schema({
   user: ref('User'),
   course: ref('Course'),
   telegramUsername: String,
@@ -311,26 +297,3 @@ export const Assignment = mongoose.models.Assignment || model('Assignment', new 
   telegramStatus: { type: String, enum: ['sent', 'failed', 'not_configured'], default: 'not_configured' },
   telegramError: String,
 }, opts()));
-
-// ---------- Serving Frontend (Static Build) ----------
-// ከሰርቨር ፎልደር አንጻር (Root Directory ባዶ ስለሆነ) ክላየንቱ የሚገኘው ../client/dist ውስጥ ነው
-app.use(express.static(path.join(__dirname, '../client/dist')));
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
-});
-
-// ---------- Database Connection & Server Startup ----------
-const PORT = process.env.PORT || 4000;
-const MONGO_URI = process.env.MONGO_URI;
-
-mongoose.connect(MONGO_URI)
-  .then(() => {
-    console.log('Connected to MongoDB successfully');
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error('Could not start: Server selection timed out or connection failed.', err);
-  });
