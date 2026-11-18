@@ -2,8 +2,22 @@ import { createContext, createElement, useCallback, useContext, useEffect, useSt
 import { getLang, translate } from './i18n/index.jsx';
 
 const TOKEN_KEY = 'baa_token';
-// Empty for the website (same server). For the Android app: your Render URL, set in client/.env.android
-export const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
+// Smart API Base URL Detection:
+// 1. VITE_API_URL ከተሰጠ (ለምሳሌ በ .env.android ወይም በ Render Environment Variables) እሱን ይጠቀማል።
+// 2. ከሌለ እና ዌብሳይቱ ላይቭ (Production) ላይ ከጠራ ራሱ በራስ ሰር የሬንደር ሊንኩን ይጠቀማል።
+// 3. ሎካል ሆስት (Localhost) ላይ ከሆንን ደግሞ ባዶውን (Relative path/Proxy) ይጠቀማል።
+const getApiBase = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL.replace(/\/$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return 'https://becoming-an-artist.onrender.com';
+  }
+  return '';
+};
+
+export const API_BASE = getApiBase();
 
 export function getToken() { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } }
 function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ } }
