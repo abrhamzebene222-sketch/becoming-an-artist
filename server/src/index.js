@@ -40,7 +40,8 @@ app.use(helmet({
     },
   },
 }));
-app.use(cors({ origin: config.publicOrigins }));
+const allowedOrigins = [].concat(config.publicOrigins || [], ['https://localhost', 'http://localhost', 'capacitor://localhost']);
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));

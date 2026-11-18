@@ -19,7 +19,9 @@ export async function api(path, { method = 'GET', body, form } = {}) {
   } catch {
     throw new Error(translate('course.connection'));
   }
-  const data = res.headers.get('content-type')?.includes('json') ? await res.json() : null;
+  const ct = res.headers.get('content-type') || '';
+  if (res.ok && ct.includes('text/html')) throw new Error(translate('course.connection'));
+  const data = ct.includes('json') ? await res.json() : null;
   if (!res.ok) {
     const err = new Error(data?.error || `Error ${res.status}`);
     err.status = res.status; err.code = data?.code;

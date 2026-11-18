@@ -51,7 +51,7 @@ async function networkFirst(request, cacheName, ms = 7000) {
   const cache = await caches.open(cacheName);
   try {
     const res = await Promise.race([fetch(request), timeout(ms)]);
-    if (res.ok) {
+    if (res.ok && (cacheName !== API || (res.headers.get('content-type') || '').includes('json'))) {
       cache.put(request, res.clone()).then(() => (cacheName === API ? trim(API, MAX_API) : null)).catch(() => {});
       if (/\/api\/media\/lesson\//.test(request.url)) res.clone().json().then(warmLessonImages).catch(() => {});
     }
