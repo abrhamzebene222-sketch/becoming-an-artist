@@ -261,7 +261,7 @@ ReferralShareSchema.index({ campaign: 1, telegramId: 1 }, { unique: true, partia
 ReferralShareSchema.index({ campaign: 1, referredUser: 1 }, { unique: true, partialFilterExpression: { referredUser: { $type: 'objectId' } } });
 export const ReferralShare = model('ReferralShare', ReferralShareSchema);
 
-export const RewardTicket = model('RewardTicket', new Schema({
+const RewardTicketSchema = new Schema({
   user: ref('User', true),
   campaign: ref('ReferralCampaign', true),
   shares: { type: Number, required: true },
@@ -271,7 +271,7 @@ export const RewardTicket = model('RewardTicket', new Schema({
   adminMessageId: Number,
   decidedVia: String,
   decidedAt: Date,
-}, opts()));
+}, opts());
 RewardTicketSchema.index({ user: 1, campaign: 1, shares: 1 }, { unique: true });
 export const RewardTicket = model('RewardTicket', RewardTicketSchema);
 
