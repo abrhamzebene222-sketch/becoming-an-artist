@@ -3,7 +3,6 @@ import { getLang, translate } from './i18n/index.jsx';
 
 const TOKEN_KEY = 'baa_token';
 
-// Smart API Base URL Detection:
 const getApiBase = () => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL.replace(/\/$/, '');
@@ -39,7 +38,6 @@ export async function api(path, { method = 'GET', body, form } = {}) {
   return data;
 }
 
-/** Small hook for GET requests. Pass null as path to skip. */
 export function useApi(path, deps = []) {
   const [state, setState] = useState({ data: null, error: null, loading: !!path });
   const load = useCallback(() => {
@@ -47,7 +45,6 @@ export function useApi(path, deps = []) {
     setState((s) => ({ ...s, loading: true }));
     api(path).then((data) => setState({ data, error: null, loading: false }))
       .catch((error) => setState({ data: null, error, loading: false }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, ...deps]);
   useEffect(load, [load]);
   return { ...state, reload: load };
@@ -57,7 +54,7 @@ const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(undefined); // undefined = still checking, null = guest
+  const [user, setUser] = useState(undefined);
   const refresh = useCallback(() => {
     if (!getToken()) { setUser(null); return Promise.resolve(null); }
     return api('/auth/me').then((u) => { setUser(u); return u; })
@@ -65,14 +62,11 @@ export function AuthProvider({ children }) {
   }, []);
   useEffect(() => { refresh(); }, [refresh]);
   const signIn = async (mode, payload) => {
-    const ref = mode === 'register' ? readReferral() : null;
-    const body = ref ? { ...payload, ref: ref.ref, refCampaign: ref.c } : payload;
-    const res = await api(`/auth/${mode}`, { method: 'POST', body });
+    const res = await api(`/auth/${mode}`, { method: 'POST', body: payload });
     if (!res || !res.token) {
       throw new Error('ሰርቨሩ ትክክለኛ ምላሽ አልሰጠም');
     }
     const { token, user: u } = res;
-    if (ref) clearReferral();
     setToken(token);
     setUser(u);
     return u;
@@ -92,25 +86,6 @@ export function fmtDate(d, withTime = true) {
   const locale = getLang() === 'am' ? 'am-ET' : 'en-GB';
   return date.toLocaleString(locale, withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' });
 }
-
-const REF_KEY = 'baa_ref';
-export function captureReferral() {
-  try {
-    const p = new URLSearchParams(window.location.search);
-    const ref = p.get('ref');
-    const c = p.get('c');
-    if (ref && c && /^[A-Za-z0-9]{4,16}$/.test(ref) && /^[A-Za-z0-9]{4,16}$/.test(c)) {
-      localStorage.setItem(REF_KEY, JSON.stringify({ ref, c, at: Date.now() }));
-    }
-  } catch { /* ignore */ }
-}
-function readReferral() {
-  try {
-    const v = JSON.parse(localStorage.getItem(REF_KEY) || 'null');
-    return v && Date.now() - v.at < 30 * 864e5 ? v : null;
-  } catch { return null; }
-}
-function clearReferral() { try { localStorage.removeItem(REF_KEY); } catch { /* ignore */ } }
 
 export function uploadImage(file, { account = 'primary', folder = 'misc', replace } = {}) {
   const form = new FormData();
