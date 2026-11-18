@@ -4,9 +4,6 @@ import { getLang, translate } from './i18n/index.jsx';
 const TOKEN_KEY = 'baa_token';
 
 // Smart API Base URL Detection:
-// 1. VITE_API_URL ከተሰጠ (ለምሳሌ በ .env.android ወይም በ Render Environment Variables) እሱን ይጠቀማል።
-// 2. ከሌለ እና ዌብሳይቱ ላይቭ (Production) ላይ ከጠራ ራሱ በራስ ሰር የሬንደር ሊንኩን ይጠቀማል።
-// 3. ሎካል ሆስት (Localhost) ላይ ከሆንን ደግሞ ባዶውን (Relative path/Proxy) ይጠቀማል።
 const getApiBase = () => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL.replace(/\/$/, '');
