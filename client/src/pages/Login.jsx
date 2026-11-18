@@ -23,14 +23,9 @@ export default function Login() {
     e.preventDefault(); setBusy(true); setErr('');
     try {
       const user = await signIn(mode, f);
-      if (!user) {
-        throw new Error('ሰርቨሩ ምንም ምላሽ አልሰጠም ወይም አካውንቱ አልተገኘም');
-      }
       // Go back to the page that asked for login (e.g. a paid course), otherwise to the right portal
       navigate(from && from !== '/login' ? from : user.role === 'admin' ? '/admin' : '/', { replace: true });
-    } catch (e2) { 
-      setErr(e2.message || 'ግባ ማረጋገጥ ላይ ስህተት ተፈጥሯል'); 
-    }
+    } catch (e2) { setErr(e2.message); }
     setBusy(false);
   };
 

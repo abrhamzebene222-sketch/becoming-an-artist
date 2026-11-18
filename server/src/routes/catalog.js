@@ -22,6 +22,13 @@ async function lessonCounts() {
   return Object.fromEntries(all.map((r) => [String(r._id), { n: r.n, previews: p[String(r._id)] || 0 }]));
 }
 
+/**
+ * Nested catalog. Every node has:
+ *   ownCourses — courses placed directly in this group
+ *   courses    — every course in this group AND all sub-groups (flattened; keeps older pages working)
+ *   children   — sub-groups (any depth)
+ *   lessonCount — total lessons in the subtree (used by the monthly plan builder)
+ */
 router.get('/catalog', ah(async (req, res) => {
   const q = String(req.query.q || '').trim().toLowerCase();
   const [cats, courses, counts] = await Promise.all([
@@ -44,6 +51,7 @@ router.get('/catalog', ah(async (req, res) => {
   for (const n of nodes.values()) (n.parent ? nodes.get(n.parent).children : roots).push(n);
 
   const matches = (text) => !q || text.toLowerCase().includes(q);
+  // Post-order walk: filter by search, compute subtree courses & lesson totals
   const walk = (n, trail) => {
     const selfText = `${n.title} ${n.titleAm} ${n.description || ''} ${n.descriptionAm || ''}`;
     const hit = matches(`${trail} ${selfText}`);
@@ -67,6 +75,7 @@ router.get('/courses/:slug', optionalAuth, ah(async (req, res) => {
     hasCourseAccess(req.user, course),
     breadcrumb(course.category),
   ]);
+  // Groups (sub-group → major group) the student can buy as a whole to unlock this course
   const groupOffers = [];
   for (const g of crumbs.slice().reverse()) {
     if (g.priceEtb > 0 && !g.isFree) groupOffers.push({ ...g, owned: await hasGroupAccess(req.user, g.id) });
@@ -92,10 +101,12 @@ router.get('/courses/:slug', optionalAuth, ah(async (req, res) => {
 
 router.get('/pricing', ah(async (_req, res) => res.json(await pricing())));
 
+/** Live server-side quote for the modular monthly plan (the page also calculates it instantly). */
 router.post('/subscription/quote', ah(async (req, res) => {
   res.json(await groupSubscriptionQuote(Array.isArray(req.body?.groups) ? req.body.groups : []));
 }));
 
+/** Promo / announcement boards: { boards: {1:[…],2:[…],3:[…]}, telegram: {...} } */
 router.get('/promos', ah(async (_req, res) => {
   const list = await Promo.find({ isActive: true }).sort({ board: 1, slot: 1 });
   const boards = { 1: [], 2: [], 3: [] };

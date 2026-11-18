@@ -1,29 +1,14 @@
 {
-  "name": "becoming-an-artist-client",
+  "name": "becoming-an-artist",
   "version": "2.0.0",
   "private": true,
-  "type": "module",
+  "description": "Becoming an Artist — online art education platform (Express + MongoDB Atlas + Cloudinary + React)",
+  "engines": { "node": ">=20" },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "build:android": "vite build && cap sync android",
-    "android:icons": "npx @capacitor/assets@3.0.5 generate --android --iconBackgroundColor \"#111B1A\" --splashBackgroundColor \"#111B1A\"",
-    "android:open": "cap open android"
-  },
-  "dependencies": {
-    "@capacitor/android": "^7.4.3",
-    "@capacitor/core": "^7.4.3",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "react-router-dom": "6.30.1"
-  },
-  "devDependencies": {
-    "@capacitor/cli": "^7.4.3",
-    "@vitejs/plugin-react": "4.7.0",
-    "autoprefixer": "10.4.20",
-    "postcss": "8.4.49",
-    "tailwindcss": "3.4.17",
-    "vite": "5.4.21"
+    "build": "npm ci --prefix server --omit=dev && npm ci --prefix client --include=dev && npm run build --prefix client",
+    "start": "npm start --prefix server",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "seed": "npm run seed --prefix server"
   }
 }

@@ -13,7 +13,6 @@ const EMPTY_COURSE = {
 };
 const EMPTY_GROUP = { title: '', titleAm: '', description: '', descriptionAm: '', parent: null, isFree: false, priceEtb: 0, monthlyPriceEtb: 0, slides: [] };
 
-// File-Explorer style curriculum manager: infinitely nested groups → courses → lessons.
 export default function CourseManager() {
   const { t, loc } = useI18n();
   const flat = useApi('/admin/curriculum');
@@ -21,11 +20,10 @@ export default function CourseManager() {
   const roots = useMemo(() => buildTree(flat.data || []), [flat.data]);
   const index = useMemo(() => indexTree(roots), [roots]);
   const [expanded, setExpanded] = useState(() => new Set());
-  const [sel, setSel] = useState(null); // { type: 'group'|'course', data }
+  const [sel, setSel] = useState(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
 
-  // Expand major groups the first time the tree loads
   useEffect(() => {
     if (flat.data && expanded.size === 0) setExpanded(new Set(roots.map((r) => r.id)));
   }, [flat.data]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -93,11 +91,10 @@ export default function CourseManager() {
   );
 }
 
-/** Indented <option>s for the whole tree. `exclude` = ids that can't be chosen (a group can't move into itself). */
 function TreeOptions({ roots, exclude = new Set() }) {
   const { loc } = useI18n();
   return flatten(roots).map((n) => (
-    <option key={n.id} value={n.id} disabled={exclude.has(n.id)}>{`${'   '.repeat(n.depth)}${n.depth ? '└ ' : ''}${loc(n, 'title')}`}</option>
+    <option key={n.id} value={n.id} disabled={exclude.has(n.id)}>{`${'   '.repeat(n.depth)}${n.depth ? '└ ' : ''}${loc(n, 'title')}`}</option>
   ));
 }
 
@@ -118,7 +115,6 @@ function GroupEditor({ group, roots, index, onSaved, onDelete, msg, setMsg, err,
     } catch (e) { setErr(e.message); return null; }
   };
 
-  // Existing group: an image change is saved at once (old file overwritten / deleted on Cloudinary)
   const setSlide = (i, media) => {
     const slides = media ? g.slides.map((s, j) => (j === i ? media : s)) : g.slides.filter((_, j) => j !== i);
     const next = { ...g, slides };
@@ -264,9 +260,7 @@ function CourseEditor({ course, roots, links, onSaved, onDeleted }) {
   );
 }
 
-const CHUNK = 20 * 1024 * 1024; // 20 MB pieces: large videos upload reliably and show progress
-
-/** Upload a file straight from this browser to the chosen Cloudinary account, in chunks, using a signature from our server. */
+const CHUNK = 20 * 1024 * 1024;
 async function uploadToCloudinary(file, kind, account, onProgress) {
   const sig = await api('/admin/cloudinary/sign', { method: 'POST', body: { kind, account } });
   const url = `https://api.cloudinary.com/v1_1/${sig.cloudName}/${sig.resourceType}/upload`;
@@ -301,7 +295,7 @@ function Lessons({ course, onChange }) {
   const [uploadAccount, setUploadAccount] = useState('primary');
   const [err, setErr] = useState('');
   const [progress, setProgress] = useState(null);
-  const [editing, setEditing] = useState(null); // { id, blocks }
+  const [editing, setEditing] = useState(null);
   const fileMode = form.kind !== 'blocks';
 
   const pickFile = async (file) => {

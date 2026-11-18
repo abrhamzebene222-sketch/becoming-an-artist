@@ -128,14 +128,10 @@ export default function CourseDetail() {
             </div>
             <div className="flex flex-wrap gap-3">
               {access && user && (
-                <Link to={`/assignment?course=${c.id}`} className="btn-primary self-start">
-                  <Icon name="send" size={16} />Submit Assignment to Instructor
-                </Link>
+                <Link to={`/assignment?course=${c.id}`} className="btn-primary self-start"><Icon name="send" size={16} />Submit assignment to instructor</Link>
               )}
               {access && c.submissionLink && (
-                <a href={c.submissionLink.url} target="_blank" rel="noreferrer" className="btn-ghost self-start">
-                  Contact Instructor / Get Help
-                </a>
+                <a href={c.submissionLink.url} target="_blank" rel="noreferrer" className="btn-ghost self-start">Get help</a>
               )}
             </div>
           </div>

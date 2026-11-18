@@ -1,147 +1,120 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n/index.jsx';
 import Icon from './Icon.jsx';
-import { etb } from '../api.js';
 
-export default function StudentCategoryTree({ groups, ownedIds, ownedGroups, subscribed, onBuy }) {
-  const [expandedIds, setExpandedIds] = useState(() => new Set());
-
-  const toggle = (id) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
+/**
+ * Student & Public Category Tree Component
+ * Supports infinitely nested groups (major groups, sub-groups, sub-sub-groups...) with expandable dropdown arrows 
+ * so students can explore the hierarchy smoothly.
+ */
+export default function StudentCategoryTree({ roots, selectedId, onSelectGroup, onSelectCourse }) {
   return (
-    <div className="flex flex-col gap-4">
-      {groups.map((group) => (
-        <StudentNode
-          key={group.id}
-          node={group}
-          depth={0}
-          expanded={expandedIds}
-          onToggle={toggle}
-          ownedIds={ownedIds}
-          ownedGroups={ownedGroups}
-          subscribed={subscribed}
-          onBuy={onBuy}
+    <ul role="tree" className="flex flex-col text-sm gap-1">
+      {roots.map((node) => (
+        <TreeNode 
+          key={node.id} 
+          node={node} 
+          depth={0} 
+          selectedId={selectedId} 
+          onSelectGroup={onSelectGroup} 
+          onSelectCourse={onSelectCourse} 
         />
       ))}
-    </div>
+    </ul>
   );
 }
 
-function StudentNode({ node, depth, expanded, onToggle, ownedIds, ownedGroups, subscribed, onBuy }) {
+function TreeNode({ node, depth, selectedId, onSelectGroup, onSelectCourse }) {
   const { t, loc } = useI18n();
-  const isOpen = expanded.has(node.id);
-  const courses = node.courses || node.ownCourses || [];
-  const children = node.children || [];
-  const hasKids = children.length > 0 || courses.length > 0;
-  const unlocked = ownedGroups.has(node.id) || subscribed;
+  // By default, expand major groups or keep them collapsible
+  const [isOpen, setIsOpen] = useState(depth === 0);
+  
+  const hasSubGroups = node.children && node.children.length > 0;
+  const hasCourses = (node.ownCourses && node.ownCourses.length > 0) || (node.courses && node.courses.length > 0);
+  const hasChildren = hasSubGroups || hasCourses;
+
+  const isActive = selectedId === node.id;
   const name = loc(node, 'title');
+  const padLeft = { paddingLeft: `${depth * 16 + 12}px` };
+  const coursesList = node.ownCourses || node.courses || [];
 
   return (
-    <div className={`flex flex-col gap-3 ${depth > 0 ? 'ml-3 sm:ml-5 pl-3 sm:pl-4 border-l border-line/60 my-2' : ''}`}>
-      <div className="rounded-2xl border border-line bg-ink-panel/40 overflow-hidden transition-all shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 hover:bg-ink/60">
-          <button
-            type="button"
-            onClick={() => hasKids && onToggle(node.id)}
-            disabled={!hasKids}
-            aria-expanded={hasKids ? isOpen : undefined}
-            className="flex items-center gap-3 text-left flex-1 min-w-0 min-h-10 disabled:cursor-default"
-          >
-            <span className={`w-8 h-8 rounded-lg grid place-items-center bg-ink text-teal-soft shrink-0 ${!hasKids ? 'opacity-30' : ''}`}>
-              <Icon name={isOpen ? 'chevronDown' : 'chevronRight'} size={18} />
-            </span>
-            <Icon name="folder" size={18} className="text-muted shrink-0" />
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-sm sm:text-base text-white truncate">{name}</span>
-              <span className="block text-xs text-muted">
-                {t('explorer.courses', { n: courses.length })}
-                {children.length ? ` · ${t('explorer.subgroups', { n: children.length })}` : ''}
-              </span>
-            </span>
-          </button>
+    <li role="treeitem" aria-expanded={hasChildren ? isOpen : undefined} className="flex flex-col">
+      <div 
+        className={`flex items-center gap-2 rounded-xl pr-2 transition-colors ${
+          isActive ? 'bg-teal-active text-white font-semibold' : 'hover:bg-ink text-muted-soft'
+        }`} 
+        style={padLeft}
+      >
+        {/* Expand/Collapse Arrow Button */}
+        <button 
+          type="button" 
+          onClick={() => setIsOpen(!isOpen)} 
+          disabled={!hasChildren}
+          aria-label={isOpen ? t('explorer.collapse', { name }) : t('explorer.expand', { name })}
+          className="w-7 h-9 shrink-0 grid place-items-center text-muted disabled:opacity-20 hover:text-mint"
+        >
+          <Icon name={isOpen ? 'chevronDown' : 'chevronRight'} size={16} />
+        </button>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {node.isFree ? (
-              <span className="rounded-full bg-teal text-[#0B1312] px-3 py-1 text-xs font-bold">{t('common.free')}</span>
-            ) : unlocked ? (
-              <span className="rounded-full bg-teal-active text-mint px-3 py-1 text-xs font-semibold">✓ {t('detail.unlocked')}</span>
-            ) : node.groupPriceEtb || node.groupPriceEtb === 0 ? (
-              <button type="button" onClick={() => onBuy(node)} className="btn-primary py-1.5 px-3 text-xs">
-                <Icon name="lock" size={13} /> {etb(node.groupPriceEtb || 0)}
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {isOpen && hasKids && (
-          <div className="px-3 sm:px-4 pb-4 pt-1 border-t border-line/60 flex flex-col gap-3">
-            {loc(node, 'description') && (
-              <p className="text-sm text-muted-soft px-1 pt-2">{loc(node, 'description')}</p>
-            )}
-
-            {/* Recursive Sub-groups */}
-            {children.length > 0 && (
-              <div className="flex flex-col gap-2 pt-2">
-                {children.map((ch) => (
-                  <StudentNode
-                    key={ch.id}
-                    node={ch}
-                    depth={depth + 1}
-                    expanded={expanded}
-                    onToggle={onToggle}
-                    ownedIds={ownedIds}
-                    ownedGroups={unlocked ? new Set([...ownedGroups, ch.id]) : ownedGroups}
-                    subscribed={subscribed}
-                    onBuy={onBuy}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Courses inside this node */}
-            {courses.length > 0 && (
-              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3 pt-3">
-                {courses.map((c) => {
-                  const isOwned = subscribed || unlocked || ownedIds.has(c.id);
-                  return (
-                    <Link
-                      key={c.id}
-                      to={`/courses/${c.slug}`}
-                      className="rounded-xl border border-line bg-ink p-3.5 hover:border-teal transition-all flex flex-col gap-2 group"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="font-semibold text-sm group-hover:text-teal-soft transition-colors truncate">{loc(c, 'title')}</span>
-                        {c.isFree ? (
-                          <span className="rounded-full bg-teal/20 text-teal-soft px-2 py-0.5 text-[10px] font-bold shrink-0">{t('common.free')}</span>
-                        ) : isOwned ? (
-                          <span className="rounded-full bg-teal-active text-mint px-2 py-0.5 text-[10px] font-semibold shrink-0">✓</span>
-                        ) : (
-                          <Icon name="lock" size={14} className="text-[#F2D98A] shrink-0 mt-0.5" />
-                        )}
-                      </div>
-                      <p className="text-xs text-muted line-clamp-2">{loc(c, 'summary')}</p>
-                      <div className="flex items-center justify-between text-[11px] text-muted-dim pt-1 border-t border-line">
-                        <span>{t('common.lessons', { n: c.lessons?.length || 0 })}</span>
-                        <span className="text-teal-soft flex items-center gap-1 group-hover:underline">
-                          {t('common.view')} <Icon name="chevronRight" size={12} />
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Group Selection Button */}
+        <button 
+          type="button" 
+          onClick={() => onSelectGroup(node)} 
+          className="flex-1 min-w-0 flex items-center gap-2.5 py-2.5 text-left"
+        >
+          <Icon name="folder" size={16} className={depth === 0 ? 'text-teal-soft shrink-0' : 'text-muted shrink-0'} />
+          <span className="truncate flex-1">{name}</span>
+          {node.isFree ? (
+            <span className="text-[11px] bg-teal text-[#0B1312] px-2 py-0.5 rounded-full font-bold shrink-0">{t('common.free')}</span>
+          ) : node.groupPriceEtb ? (
+            <span className="text-[11px] text-teal-soft shrink-0">{node.groupPriceEtb} ETB</span>
+          ) : null}
+        </button>
       </div>
-    </div>
+
+      {/* Expanded Sub-groups and Courses Tree */}
+      {isOpen && hasChildren && (
+        <ul role="group" className="relative flex flex-col gap-1 mt-1 pl-3 border-l border-line ml-4">
+          {/* Render Sub-groups recursively (ማለቂያ የሌለው ኔስቲንግ እንዲኖር ራሱን በራሱ ይጠራል) */}
+          {hasSubGroups && node.children.map((subGroup) => (
+            <TreeNode 
+              key={subGroup.id} 
+              node={subGroup} 
+              depth={depth + 1} 
+              selectedId={selectedId} 
+              onSelectGroup={onSelectGroup} 
+              onSelectCourse={onSelectCourse} 
+            />
+          ))}
+
+          {/* Render Courses inside this group */}
+          {coursesList.map((course) => {
+            const isCourseActive = selectedId === course.id;
+            return (
+              <li key={course.id} role="treeitem">
+                <button 
+                  type="button" 
+                  onClick={() => onSelectCourse(course)} 
+                  className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-lg text-left transition-colors ${
+                    isCourseActive ? 'bg-teal-active text-white font-semibold' : 'hover:bg-ink text-muted'
+                  }`}
+                >
+                  <Icon name="play" size={13} className="text-teal-soft shrink-0" />
+                  <span className="truncate flex-1">
+                    {loc(course, 'title')}
+                    {course.isFree && <span className="text-xs text-teal-soft"> · {t('common.free')}</span>}
+                  </span>
+                  <span className="text-xs text-muted-dim shrink-0">{course.lessons?.length || 0} lessons</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </li>
   );
 }
+```[cite: 12]
+
+ይህንን ፋይል ካስተካከልክ በኋላ አሁን በተማሪውም ሆነ በአድሚን በኩል በግሩፕ ስር ንዑስ ግሩፕ፣ በዚያም ስር ሌላ ንዑስ ግሩፕ ያለ ገደብ (Infinitely nested) ማየት እና ማስተዳደር ትችላለህ። እስቲ ሞክረው!

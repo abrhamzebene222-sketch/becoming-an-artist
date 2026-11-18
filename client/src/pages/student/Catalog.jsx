@@ -2,15 +2,15 @@ import { Fragment, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useApi, useAuth, etb } from '../../api.js';
 import { useI18n } from '../../i18n/index.jsx';
+import CourseCard from '../../components/CourseCard.jsx';
 import GroupSlideshow from '../../components/GroupSlideshow.jsx';
 import PromoBoard from '../../components/PromoBoard.jsx';
 import GroupPurchase from '../../components/GroupPurchase.jsx';
-import StudentCategoryTree from '../../components/StudentCategoryTree.jsx';
 import useTelegramShare from '../../components/TelegramShare.jsx';
 import Icon from '../../components/Icon.jsx';
 
 export default function Catalog() {
-  const { t, loc } = useI18n();
+  const { t } = useI18n();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const q = params.get('q') || '';
@@ -20,11 +20,11 @@ export default function Catalog() {
   const share = useTelegramShare();
   const [buying, setBuying] = useState(null);
   
-  // Track which major groups are expanded/collapsed by user click
-  const [expandedMajorGroups, setExpandedMajorGroups] = useState(() => new Set());
+  // የትኞቹ ሜጀር ግሩፖች እንደተከፈቱ (expanded) ለመቆጣጠር
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
 
-  const toggleMajorGroup = (id) => {
-    setExpandedMajorGroups((prev) => {
+  const toggleGroup = (id) => {
+    setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -71,66 +71,45 @@ export default function Catalog() {
       )}
 
       {groups.map((cat, i) => {
-        const isOpen = expandedMajorGroups.has(cat.id);
-        const hasChildren = (cat.children && cat.children.length > 0) || (cat.ownCourses && cat.ownCourses.length > 0);
-        const unlocked = ownedGroups.has(cat.id) || subscribed;
+        const isExpanded = expandedGroups.has(cat.id);
+        const hasSubChildren = cat.children && cat.children.length > 0;
+        const hasOwnCourses = cat.ownCourses && cat.ownCourses.length > 0;
+        const hasContent = hasSubChildren || hasOwnCourses;
 
         return (
           <Fragment key={cat.id}>
-            <section id={cat.slug} className="flex flex-col gap-5 scroll-mt-6">
-              {/* Major Group Slideshow (Untouched & intact) */}
-              <GroupSlideshow group={cat} index={i}>
-                <div className="flex items-center gap-3">
-                  <GroupBadge node={cat} {...ctx} />
-                  {hasChildren && (
-                    <button
-                      type="button"
-                      onClick={() => toggleMajorGroup(cat.id)}
-                      className="btn-ghost py-2 px-3.5 text-sm flex items-center gap-2 bg-ink/80 text-white border-line hover:border-teal"
-                    >
-                      <span>{isOpen ? 'Collapse Courses' : 'Explore Courses'}</span>
-                      <Icon name={isOpen ? 'chevronUp' : 'chevronDown'} size={16} />
-                    </button>
-                  )}
-                </div>
+            <section id={cat.slug} className="flex flex-col gap-4 scroll-mt-6">
+              {/* ሜጀር ግሩፕ ባነር - አሮይቷን እና ኤክስፓንድ ሎጂኩን የያዘ */}
+              <GroupSlideshow 
+                group={cat} 
+                index={i} 
+                expanded={isExpanded} 
+                onToggle={() => toggleGroup(cat.id)}
+              >
+                <GroupBadge node={cat} {...ctx} />
               </GroupSlideshow>
-              
-              {/* Expandable Sub-groups & Courses Tree under this Major Group */}
-              {isOpen && hasChildren && (
-                <div className="flex flex-col gap-4 pl-2 sm:pl-4 border-l-2 border-teal/40 animate-fadeIn">
-                  {cat.children && cat.children.length > 0 && (
-                    <StudentCategoryTree groups={cat.children} {...ctx} />
+
+              {/* ሲከፈት ብቻ ከስሩ የሚዘረጉ ኮርሶች እና ንዑስ ግሩፖች */}
+              {isExpanded && hasContent && (
+                <div className="flex flex-col gap-4 pl-2 sm:pl-4 pt-2">
+                  {hasOwnCourses && (
+                    <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                      {cat.ownCourses.map((c) => (
+                        <CourseCard key={c.id} course={c} owned={ctx.subscribed || ownedGroups.has(cat.id) || ctx.ownedIds.has(c.id)} />
+                      ))}
+                    </div>
                   )}
-                  {cat.ownCourses && cat.ownCourses.length > 0 && (
-                    <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3 pt-2">
-                      {cat.ownCourses.map((c) => {
-                        const isOwned = subscribed || unlocked || ownedIds.has(c.id);
-                        return (
-                          <Link
-                            key={c.id}
-                            to={`/courses/${c.slug}`}
-                            className="rounded-xl border border-line bg-ink p-3.5 hover:border-teal transition-all flex flex-col gap-2 group"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="font-semibold text-sm group-hover:text-teal-soft transition-colors truncate">{loc(c, 'title')}</span>
-                              {c.isFree ? (
-                                <span className="rounded-full bg-teal/20 text-teal-soft px-2 py-0.5 text-[10px] font-bold shrink-0">{t('common.free')}</span>
-                              ) : isOwned ? (
-                                <span className="rounded-full bg-teal-active text-mint px-2 py-0.5 text-[10px] font-semibold shrink-0">✓</span>
-                              ) : (
-                                <Icon name="lock" size={14} className="text-[#F2D98A] shrink-0 mt-0.5" />
-                              )}
-                            </div>
-                            <p className="text-xs text-muted line-clamp-2">{loc(c, 'summary')}</p>
-                            <div className="flex items-center justify-between text-[11px] text-muted-dim pt-1 border-t border-line">
-                              <span>{t('common.lessons', { n: c.lessons?.length || 0 })}</span>
-                              <span className="text-teal-soft flex items-center gap-1 group-hover:underline">
-                                {t('common.view')} <Icon name="chevronRight" size={12} />
-                              </span>
-                            </div>
-                          </Link>
-                        );
-                      })}
+                  {hasSubChildren && (
+                    <div className="flex flex-col gap-3">
+                      {cat.children.map((ch) => (
+                        <SubGroup 
+                          key={ch.id} 
+                          node={ch} 
+                          depth={1} 
+                          {...ctx} 
+                          ownedGroups={ownedGroups.has(cat.id) ? new Set([...ownedGroups, ch.id]) : ownedGroups} 
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -140,6 +119,7 @@ export default function Catalog() {
           </Fragment>
         );
       })}
+
       {!q && catalog.data && [1, 2, 3].filter((n) => n > groups.length).map(board)}
 
       {buying && (
@@ -159,5 +139,62 @@ function GroupBadge({ node, ownedGroups, subscribed, onBuy }) {
     <button type="button" onClick={() => onBuy(node)} className="btn-primary py-2 px-3.5 text-sm">
       <Icon name="lock" size={14} />{t('detail.buyGroup')} · {etb(node.groupPriceEtb)}
     </button>
+  );
+}
+
+/** ሪኩርሲቭ ንዑስ ግሩፕ ኮምፖነንት - በውስጡ ሌላ ንዑስ ግሩፕ ወይም ኮርስ ሲኖረው አሮ በመንካት እየከፈተ ይሄዳል */
+function SubGroup({ node, depth, ...ctx }) {
+  const { t, loc } = useI18n();
+  const [open, setOpen] = useState(false);
+  const id = `sg-${node.id}`;
+  
+  const hasSubChildren = node.children && node.children.length > 0;
+  const hasOwnCourses = node.ownCourses && node.ownCourses.length > 0;
+
+  return (
+    <section className="rounded-xl border border-line bg-ink-panel/40" aria-labelledby={`${id}-h`}>
+      <div className="flex flex-wrap items-center gap-3 p-3 sm:p-4">
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={id}
+          className="flex items-center gap-2 text-left flex-1 min-w-0 min-h-11 hover:text-mint transition-colors">
+          <Icon name={open ? 'chevronDown' : 'chevronRight'} size={18} className="text-teal-soft shrink-0" />
+          <span className="min-w-0">
+            <span id={`${id}-h`} className="block font-semibold truncate">{loc(node, 'title')}</span>
+            <span className="block text-xs text-muted">
+              {t('explorer.courses', { n: node.courses?.length || node.ownCourses?.length || 0 })}
+              {hasSubChildren ? ` · ${t('explorer.subgroups', { n: node.children.length })}` : ''}
+            </span>
+          </span>
+        </button>
+        <GroupBadge node={node} {...ctx} />
+      </div>
+      
+      {open && (
+        <div id={id} className="px-3 sm:px-4 pb-4 flex flex-col gap-4 border-t border-line/50 pt-3">
+          {loc(node, 'description') && <p className="text-sm text-muted-soft">{loc(node, 'description')}</p>}
+          
+          {hasOwnCourses && (
+            <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              {node.ownCourses.map((c) => (
+                <CourseCard key={c.id} course={c} owned={ctx.subscribed || ctx.ownedGroups.has(node.id) || ctx.ownedIds.has(c.id)} />
+              ))}
+            </div>
+          )}
+
+          {hasSubChildren && (
+            <div className="flex flex-col gap-3 pl-3 sm:pl-5 border-l border-line/40">
+              {node.children.map((childSub) => (
+                <SubGroup 
+                  key={childSub.id} 
+                  node={childSub} 
+                  depth={depth + 1} 
+                  {...ctx} 
+                  ownedGroups={ctx.ownedGroups.has(node.id) ? new Set([...ctx.ownedGroups, childSub.id]) : ctx.ownedGroups} 
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

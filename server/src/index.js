@@ -1,95 +1,88 @@
-// Main Server Entry for Becoming an Artist
+// Becoming an Artist — API server (Express + MongoDB Atlas + Cloudinary). Ready for Render.
 import express from 'express';
-import mongoose from 'mongoose';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import helmet from 'helmet';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { config } from './config.js';
+import { connectDB } from './db.js';
+import { seed } from './seed.js';
+import { msg } from './i18n.js';
+import authRoutes from './routes/auth.js';
+import catalogRoutes from './routes/catalog.js';
+import mediaRoutes from './routes/media.js';
+import teacherRoutes from './routes/teachers.js';
+import adminRoutes from './routes/admin.js';
+import studentRoutes from './routes/student.js';
+import adminGrowthRoutes from './routes/adminGrowth.js';
+import growthRoutes from './routes/growth.js';
+import assignmentRoutes from './routes/assignments.js';
 
-// Import Models
-import { 
-  User, Course, Lesson, Category, Enrollment, GroupEnrollment, 
-  Subscription, Payment, Booking, CourseRequest, TeacherApplication, 
-  Notification, ContactInfo, SubmissionLink, Setting, CloudinaryAccount, 
-  Promo, ReferralCampaign, ReferralShare, RewardTicket, CreditTransaction, Assignment 
-} from './models/index.js';
-
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
-app.use(express.json());
-app.use(cors({
-  origin: process.env.PUBLIC_ORIGIN || '*',
-  credentials: true
+app.set('trust proxy', 1); // Render / Cloudflare sit in front of the app
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'same-site' },
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      'font-src': ["'self'", 'https://fonts.gstatic.com'],
+      'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      // YouTube lesson embeds (privacy-enhanced domain) + Cloudinary (any account: all are on res.cloudinary.com)
+      'frame-src': ["'self'", 'https://res.cloudinary.com', 'https://www.youtube-nocookie.com', 'https://www.youtube.com'],
+      'media-src': ["'self'", 'https://res.cloudinary.com'],
+      'img-src': ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com', 'https://i.ytimg.com'],
+      'connect-src': ["'self'", 'https://api.cloudinary.com', 'https://res.cloudinary.com', 'https://i.ytimg.com', 'https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
+      'worker-src': ["'self'"],
+      'manifest-src': ["'self'"],
+    },
+  },
 }));
+app.use(cors({ origin: config.publicOrigins }));
+app.use(express.json({ limit: '1mb' }));
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+app.get('/api/health', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+app.use('/api/auth', authRoutes);
+app.use('/api', catalogRoutes);
+app.use('/api', teacherRoutes);
+app.use('/api/media', mediaRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminGrowthRoutes);
+app.use('/api', growthRoutes);
+app.use('/api', assignmentRoutes);
+app.use('/api', studentRoutes);
+app.use('/api', (req, res) => res.status(404).json({ error: msg(req, 'notFound') }));
 
-// ---------- API Routes ----------
-// 1. Health Check Route
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running smoothly', timestamp: new Date() });
-});
+// Serve the built React app (client/dist)
+const dist = path.resolve(__dirname, '../../client/dist');
+if (fs.existsSync(dist)) {
+  // PWA: the service worker and manifest must always be re-checked, or updates never reach installed apps
+  app.get(['/sw.js', '/manifest.json'], (req, res, next) => { res.set('Cache-Control', 'no-cache'); next(); });
+  app.use('/assets', express.static(path.join(dist, 'assets'), { maxAge: '365d', immutable: true }));
+  app.use(express.static(dist, { maxAge: '1h', index: false }));
+  app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+}
 
-// 2. Courses API
-app.get('/api/courses', async (req, res) => {
-  try {
-    const courses = await Course.find({ isPublished: true }).populate('category').sort({ sortOrder: 1 });
-    res.json(courses);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+app.use((err, req, res, _next) => {
+  console.error(err);
+  if (err.name === 'MulterError') {
+    const key = req.path.includes('assignments') ? 'assignmentFields' : req.path.includes('/media/upload') ? 'imageRequired' : 'receiptRequired';
+    return res.status(400).json({ error: msg(req, key), code: key });
   }
+  res.status(500).json({ error: msg(req, 'serverError') });
 });
 
-app.get('/api/courses/:slug', async (req, res) => {
-  try {
-    const course = await Course.findOne({ slug: req.params.slug }).populate('category');
-    if (!course) return res.status(404).json({ error: 'Course not found' });
-    res.json(course);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 3. Categories API
-app.get('/api/categories', async (req, res) => {
-  try {
-    const categories = await Category.find().sort({ sortOrder: 1 });
-    res.json(categories);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 4. Lessons API
-app.get('/api/courses/:courseId/lessons', async (req, res) => {
-  try {
-    const lessons = await Lesson.find({ course: req.params.courseId }).sort({ sortOrder: 1 });
-    res.json(lessons);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ---------- Serving Frontend (Static Build) ----------
-app.use(express.static(path.join(__dirname, '../../client/dist')));
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../client/dist/index.html'));
-});
-
-// ---------- Database Connection & Server Startup ----------
-const PORT = process.env.PORT || 4000;
-const MONGO_URI = process.env.MONGO_URI;
-
-mongoose.connect(MONGO_URI)
-  .then(() => {
-    console.log('Connected to MongoDB successfully');
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error('Could not start: Server selection timed out or connection failed.', err);
+try {
+  await connectDB();
+  await seed();
+  app.listen(config.port, '0.0.0.0', () => {
+    console.log(`✔ Becoming an Artist running on port ${config.port}`);
+    console.log(`  Videos, PDFs & receipts: Cloudinary (${config.cloudinary.cloudName || 'not configured'})`);
   });
+} catch (e) {
+  console.error('✖ Could not start:', e.message);
+  console.error('  Check MONGO_URI (username, password, database access) and Atlas › Network Access.');
+  process.exit(1);
+}
