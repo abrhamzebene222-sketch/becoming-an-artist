@@ -62,11 +62,14 @@ export function AuthProvider({ children }) {
   }, []);
   useEffect(() => { refresh(); }, [refresh]);
   const signIn = async (mode, payload) => {
-    const res = await api(`/auth/${mode}`, { method: 'POST', body: payload });
+    const ref = mode === 'register' ? readReferral() : null;
+    const body = ref ? { ...payload, ref: ref.ref, refCampaign: ref.c } : payload;
+    const res = await api(`/auth/${mode}`, { method: 'POST', body });
     if (!res || !res.token) {
       throw new Error('ሰርቨሩ ትክክለኛ ምላሽ አልሰጠም');
     }
     const { token, user: u } = res;
+    if (ref) clearReferral();
     setToken(token);
     setUser(u);
     return u;
@@ -86,6 +89,25 @@ export function fmtDate(d, withTime = true) {
   const locale = getLang() === 'am' ? 'am-ET' : 'en-GB';
   return date.toLocaleString(locale, withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' });
 }
+
+const REF_KEY = 'baa_ref';
+export function captureReferral() {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    const ref = p.get('ref');
+    const c = p.get('c');
+    if (ref && c && /^[A-Za-z0-9]{4,16}$/.test(ref) && /^[A-Za-z0-9]{4,16}$/.test(c)) {
+      localStorage.setItem(REF_KEY, JSON.stringify({ ref, c, at: Date.now() }));
+    }
+  } catch { /* ignore */ }
+}
+function readReferral() {
+  try {
+    const v = JSON.parse(localStorage.getItem(REF_KEY) || 'null');
+    return v && Date.now() - v.at < 30 * 864e5 ? v : null;
+  } catch { return null; }
+}
+function clearReferral() { try { localStorage.removeItem(REF_KEY); } catch { /* ignore */ } }
 
 export function uploadImage(file, { account = 'primary', folder = 'misc', replace } = {}) {
   const form = new FormData();
