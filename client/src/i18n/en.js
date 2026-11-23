@@ -31,13 +31,13 @@ export default {
     greeting: 'Welcome back, {name}', enrolledCourses: 'Enrolled courses', subscribedAll: 'All (subscribed)',
     pendingPayments: 'Payments awaiting review', nextSession: 'Next 1-on-1 session', noSession: 'None booked',
     continueLearning: 'Continue learning', noCourses: "You haven't unlocked a paid course yet.", browseCatalog: 'Browse the catalog',
-    curriculum: 'Curriculum', group: 'Group {n}', submitWork: 'Submit your artwork', submitWorkText: 'Send finished assignments for critique:',
+    curriculum: 'Curriculum', group: 'Unit {n}', submitWork: 'Submit your artwork', submitWorkText: 'Send finished assignments for critique:',
     contact: 'Contact',
   },
   catalog: {
     title: 'Course Catalog', subtitle: 'An academic path through drawing, color, composition and anatomy.', filter: 'Filter',
     filterPlaceholder: 'Search by name or topic', noMatch: 'No courses match "{q}".', requestIt: 'Request this course',
-    majorGroup: 'Major group {n}', guestBanner: "You're browsing as a guest. Free courses are open to everyone — sign in to buy paid courses.",
+    majorGroup: 'Chapter {n}', guestBanner: "You're browsing as a guest. Free courses are open to everyone — sign in to buy paid courses.",
   },
   course: {
     locked: 'Unlock this course to start watching', signInToWatch: 'Sign in to watch this paid course',

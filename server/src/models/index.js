@@ -94,6 +94,7 @@ const needsFile = function needsFile() { return this.kind !== 'blocks'; };
 export const Lesson = model('Lesson', new Schema({
   course: ref('Course', true),
   title: { type: String, required: true, trim: true },
+  titleAm: { type: String, trim: true },
   kind: { type: String, enum: ['video', 'pdf', 'blocks'], required: true },
   cloudPublicId: { type: String, required: needsFile },
   cloudResourceType: { type: String, enum: ['video', 'image'], required: needsFile }, // PDFs are "image" in Cloudinary

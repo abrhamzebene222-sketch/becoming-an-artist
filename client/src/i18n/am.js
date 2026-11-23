@@ -31,13 +31,13 @@ export default {
     greeting: 'እንኳን ደህና መጡ፣ {name}', enrolledCourses: 'የተመዘገቡባቸው ኮርሶች', subscribedAll: 'ሁሉም (በምዝገባ)',
     pendingPayments: 'ማረጋገጫ የሚጠብቁ ክፍያዎች', nextSession: 'ቀጣዩ የግል ትምህርት', noSession: 'ቀጠሮ የለም',
     continueLearning: 'ትምህርትዎን ይቀጥሉ', noCourses: 'እስካሁን የከፈቱት የክፍያ ኮርስ የለም።', browseCatalog: 'የኮርሶችን ዝርዝር ይመልከቱ',
-    curriculum: 'ሥርዓተ ትምህርት', group: 'ምድብ {n}', submitWork: 'የሥዕል ሥራዎን ያስገቡ', submitWorkText: 'የጨረሱትን የቤት ሥራ ለግምገማ ይላኩ፦',
+    curriculum: 'ሥርዓተ ትምህርት', group: 'ክፍል {n}', submitWork: 'የሥዕል ሥራዎን ያስገቡ', submitWorkText: 'የጨረሱትን የቤት ሥራ ለግምገማ ይላኩ፦',
     contact: 'አድራሻ',
   },
   catalog: {
     title: 'የኮርሶች ዝርዝር', subtitle: 'በስዕል፣ በቀለም፣ በቅንብር እና በአናቶሚ የተዋቀረ የአካዳሚክ የትምህርት መንገድ።', filter: 'አጣራ',
     filterPlaceholder: 'በስም ወይም በርዕስ ይፈልጉ', noMatch: 'ከ"{q}" ጋር የሚዛመድ ኮርስ የለም።', requestIt: 'ይህን ኮርስ ይጠይቁ',
-    majorGroup: 'ዋና ምድብ {n}', guestBanner: 'እንደ እንግዳ እየተመለከቱ ነው። ነፃ ኮርሶች ለሁሉም ክፍት ናቸው — የክፍያ ኮርሶችን ለመግዛት ይግቡ።',
+    majorGroup: 'ምዕራፍ {n}', guestBanner: 'እንደ እንግዳ እየተመለከቱ ነው። ነፃ ኮርሶች ለሁሉም ክፍት ናቸው — የክፍያ ኮርሶችን ለመግዛት ይግቡ።',
   },
   course: {
     locked: 'መመልከት ለመጀመር ይህን ኮርስ ይክፈቱ', signInToWatch: 'ይህን የክፍያ ኮርስ ለማየት ይግቡ',
