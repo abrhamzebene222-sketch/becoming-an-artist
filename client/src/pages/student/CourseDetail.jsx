@@ -89,7 +89,7 @@ export default function CourseDetail() {
                 const inner = (
                   <>
                     <Icon name={icon} size={16} className={open ? 'text-teal-soft shrink-0' : 'text-muted-dim shrink-0'} />
-                    <span className="flex-1 min-w-0 truncate">{i + 1} · {l.title}</span>
+                    <span className="flex-1 min-w-0 truncate">{i + 1} · {loc(l, 'title')}</span>
                     {l.durationSec ? <span className="text-xs text-muted-dim hidden sm:inline">{mins(l.durationSec)}</span> : null}
                     {!access && l.isPreview && <span className="rounded-full bg-teal text-[#0B1312] px-2 py-0.5 text-[11px] font-bold shrink-0">{t('detail.previewTag')}</span>}
                     {!open && <span className="text-xs text-[#F2D98A] shrink-0">{t('detail.locked')}</span>}

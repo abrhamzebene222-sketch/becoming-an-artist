@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { api, useApi, etb } from '../../api.js';
 import { useI18n } from '../../i18n/index.jsx';
 import Icon from '../../components/Icon.jsx';
@@ -300,8 +302,9 @@ function Lessons({ course, onChange }) {
   const [uploadAccount, setUploadAccount] = useState('primary');
   const [err, setErr] = useState('');
   const [progress, setProgress] = useState(null);
-  const [editing, setEditing] = useState(null);
   const [newsMsg, setNewsMsg] = useState({ id: '', text: '', error: false });
+  const [fmt, setFmt] = useState('pdf');
+  const [exp, setExp] = useState({ id: '', busy: false, text: '', error: false });
   const fileMode = form.kind !== 'blocks';
 
   const pickFile = async (file) => {
@@ -324,24 +327,32 @@ function Lessons({ course, onChange }) {
   };
   const del = async (id) => { await api(`/admin/lessons/${id}`, { method: 'DELETE' }); onChange(); };
   const togglePreview = async (l) => { await api(`/admin/lessons/${l.id}`, { method: 'PUT', body: { isPreview: !l.isPreview } }); onChange(); };
-  const saveBlocks = async () => {
-    setErr('');
-    try {
-      await api(`/admin/lessons/${editing.id}`, { method: 'PUT', body: { blocks: stripKeys(editing.blocks), keywords: editing.keywords, keywordsAm: editing.keywordsAm, subtitle: editing.subtitle, subtitleAm: editing.subtitleAm } });
-      setEditing(null); onChange();
-    }
-    catch (e) { setErr(e.message); }
-  };
   const addToNews = async (l) => {
     setNewsMsg({ id: l.id, text: '', error: false });
     try { await api(`/admin/lessons/${l.id}/news`, { method: 'POST' }); setNewsMsg({ id: l.id, text: t('admin.courses.addedToNews'), error: false }); }
     catch (e) { setNewsMsg({ id: l.id, text: e.message, error: true }); }
   };
+  const sendTelegram = async (l) => {
+    setExp({ id: l.id, busy: true, text: '', error: false });
+    try {
+      const r = await api(`/admin/lessons/${l.id}/export`, { method: 'POST', body: { format: fmt } });
+      setExp({ id: l.id, busy: false, error: false, text: t('admin.export.sent', { file: r.filename }) + (r.missingImages ? ` ${t('admin.export.missing', { n: r.missingImages })}` : '') });
+    } catch (e) { setExp({ id: l.id, busy: false, text: e.message, error: true }); }
+  };
   const lessonIcon = (l) => (l.kind === 'pdf' ? 'file' : l.kind === 'video' ? 'play' : 'text');
 
   return (
     <section className="card p-6 flex flex-col gap-5">
-      <h2 className="text-lg font-semibold">{t('admin.courses.lessons')}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">{t('admin.courses.lessons')}</h2>
+        <label className="flex items-center gap-2 text-xs text-muted">{t('admin.export.format')}
+          <select className="input py-1.5 text-xs w-auto" value={fmt} onChange={(e) => setFmt(e.target.value)}>
+            <option value="pdf">{t('admin.export.pdf')}</option>
+            <option value="html">{t('admin.export.html')}</option>
+          </select>
+        </label>
+      </div>
+      <p className="text-xs text-muted leading-relaxed">{t('admin.export.hint')}</p>
       <ul className="flex flex-col">
         {course.lessons.map((l, i) => (
           <li key={l.id} className="py-3 border-b border-line last:border-0 text-sm flex flex-col gap-3">
@@ -354,30 +365,20 @@ function Lessons({ course, onChange }) {
                 <button className={`px-3 py-2 rounded-lg text-xs border ${l.isPreview ? 'border-teal text-mint' : 'border-line-strong text-muted'}`} onClick={() => togglePreview(l)} aria-pressed={l.isPreview}>
                   {l.isPreview ? t('admin.courses.freePreview') : t('admin.courses.locked')}
                 </button>
-                <button className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint" onClick={() => setEditing(editing?.id === l.id ? null : { id: l.id, blocks: withKeys(l.blocks), keywords: l.keywords || '', keywordsAm: l.keywordsAm || '', subtitle: l.subtitle || '', subtitleAm: l.subtitleAm || '' })}>
-                  {t('blocks.editContent')}
-                </button>
+                {Capacitor.isNativePlatform()
+                  ? <Link to={`/admin/lessons/${l.id}/edit`} className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint">{t('blocks.editContent')}</Link>
+                  : <a href={`/admin/lessons/${l.id}/edit`} target="_blank" rel="noreferrer" className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint">{t('blocks.editContent')} ↗</a>}
                 <button className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint" onClick={() => addToNews(l)}>{t('admin.courses.addToNews')}</button>
+                {l.kind === 'blocks' && (
+                  <button className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint disabled:opacity-60" disabled={exp.busy} onClick={() => sendTelegram(l)}>
+                    {exp.busy && exp.id === l.id ? t('admin.export.sending') : t('admin.export.send')}
+                  </button>
+                )}
                 <button className="px-3 py-2 rounded-lg text-xs border border-[#5A3A37] text-[#F2A7A0]" onClick={() => del(l.id)}>{t('common.remove')}</button>
               </span>
             </div>
+            {exp.id === l.id && exp.text && <p className={`text-xs ${exp.error ? 'text-[#F2A7A0]' : 'text-mint'}`} role="status">{exp.text}</p>}
             {newsMsg.id === l.id && newsMsg.text && <p className={`text-xs ${newsMsg.error ? 'text-[#F2A7A0]' : 'text-mint'}`} role="status">{newsMsg.text}</p>}
-            {editing?.id === l.id && (
-              <div className="rounded-xl border border-line p-4 flex flex-col gap-3">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <label className="label">{t('admin.courses.subtitle')}<input className="input" maxLength={300} value={editing.subtitle} onChange={(e) => setEditing({ ...editing, subtitle: e.target.value })} /></label>
-                  <label className="label">{t('admin.courses.subtitleAm')}<input className="input" lang="am" maxLength={300} value={editing.subtitleAm} onChange={(e) => setEditing({ ...editing, subtitleAm: e.target.value })} /></label>
-                  <label className="label">{t('admin.courses.keywords')}<input className="input" value={editing.keywords} onChange={(e) => setEditing({ ...editing, keywords: e.target.value })} /></label>
-                  <label className="label">{t('admin.courses.keywordsAm')}<input className="input" lang="am" value={editing.keywordsAm} onChange={(e) => setEditing({ ...editing, keywordsAm: e.target.value })} /></label>
-                  <p className="text-xs text-muted md:col-span-2">{t('admin.courses.keywordsHint')}</p>
-                </div>
-                <BlockEditor value={editing.blocks} onChange={(blocks) => setEditing({ ...editing, blocks })} />
-                <div className="flex gap-2">
-                  <button className="btn-primary py-2" onClick={saveBlocks}>{t('blocks.saveContent')}</button>
-                  <button className="btn-ghost py-2" onClick={() => setEditing(null)}>{t('blocks.cancel')}</button>
-                </div>
-              </div>
-            )}
           </li>
         ))}
         {course.lessons.length === 0 && <li className="text-sm text-muted">{t('admin.courses.noLessons')}</li>}

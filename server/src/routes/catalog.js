@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import {
-  Category, Course, Lesson, SubmissionLink, ContactInfo, Promo,
+  Category, Course, Lesson, SubmissionLink, ContactInfo, Promo, NewsItem,
 } from '../models/index.js';
 import { optionalAuth } from '../auth.js';
 import { fail, msg } from '../i18n.js';
@@ -76,7 +76,7 @@ router.get('/courses/:slug', optionalAuth, ah(async (req, res) => {
   const course = await Course.findOne({ slug: req.params.slug, isPublished: true });
   if (!course) return fail(req, res, 404, 'courseNotFound');
   const [lessons, link, access, crumbs] = await Promise.all([
-    Lesson.find({ course: course._id }, 'title subtitle subtitleAm kind isPreview durationSec sortOrder blocks.type').sort({ sortOrder: 1, createdAt: 1 }),
+    Lesson.find({ course: course._id }, 'title kind isPreview durationSec sortOrder blocks.type').sort({ sortOrder: 1, createdAt: 1 }),
     course.submissionLink ? SubmissionLink.findById(course.submissionLink) : SubmissionLink.findOne({ isDefault: true }),
     hasCourseAccess(req.user, course),
     breadcrumb(course.category),
@@ -95,7 +95,7 @@ router.get('/courses/:slug', optionalAuth, ah(async (req, res) => {
     majorGroup: major,
     groupOffers,
     lessons: lessons.map((l) => ({
-      id: l.id, title: l.title, kind: l.kind, isPreview: l.isPreview, durationSec: l.durationSec, sortOrder: l.sortOrder,
+      id: l.id, title: l.title, titleAm: l.titleAm || '', kind: l.kind, isPreview: l.isPreview, durationSec: l.durationSec, sortOrder: l.sortOrder,
       blockTypes: [...new Set(l.blocks.map((b) => b.type))],
     })),
     hasPreview: lessons.some((l) => l.isPreview),
@@ -127,7 +127,18 @@ router.post('/subscription/quote', ah(async (req, res) => {
 router.get('/promos', ah(async (_req, res) => {
   const list = await Promo.find({ isActive: true }).sort({ board: 1, slot: 1 });
   const boards = { 1: [], 2: [], 3: [] };
-  for (const p of list) if (p.title || p.titleAm || p.image?.url) boards[p.board].push(p);
+  for (const p of list) if (p.title || p.titleAm || p.image?.url) boards[p.board].push(p.toObject({ virtuals: true }));
+  // Board 1 (Daily news & new courses): the admin's own units (new-course announcements) come first, then the latest
+  // items of the News feed. New news appears here automatically; "Read more" opens /news/:id. Course announcements
+  // are written only in the board units and never go into the News feed.
+  const latestNews = await NewsItem.find({ isActive: true }).sort({ createdAt: -1 }).limit(5).lean();
+  for (const n of latestNews) {
+    boards[1].push({
+      id: `news-${n._id}`, newsId: String(n._id), board: 1,
+      title: n.title, titleAm: n.titleAm || '', description: n.summary || '', descriptionAm: n.summaryAm || '',
+      image: n.image?.url ? { url: n.image.url, publicId: n.image.publicId, account: n.image.account || 'env', resourceType: 'image' } : null,
+    });
+  }
   const cfg = await botConfig();
   res.json({
     boards,

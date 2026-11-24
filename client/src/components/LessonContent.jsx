@@ -40,7 +40,10 @@ export default function LessonContent({ lessonId }) {
           <a href={data.url} target="_blank" rel="noreferrer" className="text-sm self-start">{t('course.pdf')} ↗</a>
         </>
       )}
-      {data.blocks.map((b, bi) => {
+      {!(data.blocks || []).length && (
+        <p className="text-sm text-muted p-4" role="note">{t('detail.comingSoon')}</p>
+      )}
+      {(data.blocks || []).map((b, bi) => {
         const pick = (field) => (lang === 'am' && b[`${field}Am`]) || b[field] || b[`${field}Am`] || '';
         const amLang = lang === 'am' && b.textAm ? 'am' : undefined;
         if (b.type === 'heading') {

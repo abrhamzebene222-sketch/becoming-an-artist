@@ -7,7 +7,7 @@ export default {
     dashboard: 'Dashboard', catalog: 'Course Catalog', enrolled: 'My Enrolled Courses', sessions: '1-on-1 Sessions',
     request: 'Request a Course', teach: 'Teach with Us', signOut: 'Sign out', signIn: 'Sign in', signUp: 'Create account',
     monthlyAccess: 'Monthly access', monthlyAccessText: 'Unlock every paid course and save on per-course prices.',
-    viewSubscription: 'View subscription', menu: 'Open menu', closeMenu: 'Close menu', back: 'Back', search: 'Search courses & lessons', searchPlaceholder: 'e.g. perspective, color, line quality',
+    viewSubscription: 'View subscription', menu: 'Open menu', search: 'Search courses & lessons', searchPlaceholder: 'e.g. perspective, color, line quality',
     studentNav: 'Student navigation', adminNav: 'Admin navigation',
     payments: 'Payments', bookings: '1-on-1 Bookings', requests: 'Course Requests', teachers: 'Teacher Applications',
     courses: 'Courses & Media', settings: 'Settings & Pricing', users: 'Users & Roles', studentView: 'Student view',
@@ -207,6 +207,7 @@ export default {
     youtubeUrl: 'YouTube URL', caption: 'Caption (optional)', up: 'Move up', down: 'Move down', invalidYoutube: 'Paste a valid YouTube link.',
     extra: 'Extra notes & YouTube under the video (optional)', previewLesson: 'Free Preview Lesson — anyone can open it to evaluate the course',
     editContent: 'Edit content', saveContent: 'Save content', cancel: 'Cancel', empty: 'Add text boxes, images or YouTube videos.',
+    editorTitle: 'Edit lesson', closeWindow: 'Close this window', lessonMissing: 'This lesson was not found.',
   },
   boards: {
     news: 'Daily news & announcements', community: 'Community & Telegram', referral: 'Referral & sponsored',
@@ -220,7 +221,7 @@ export default {
   detail: {
     noPreview: 'ለዚህ ኮርስ ነጻ ፕሪቪው የለም', noPreviewEn: 'No free preview available for this course.',
     locked: '🔒 Locked', unlocked: 'Unlocked', previewTag: 'Free preview', open: 'Open lesson', close: 'Close lesson',
-    loadingLesson: 'Loading lesson…', offline: 'You are offline — showing the saved copy.', groupLocked: 'This course group is locked',
+    comingSoon: 'Lesson content coming soon.', loadingLesson: 'Loading lesson…', offline: 'You are offline — showing the saved copy.', groupLocked: 'This course group is locked',
     buyGroup: 'Buy the whole group', ownedGroup: 'You own this group', orCredit: 'Use credit ({amount} available)',
     useCredit: 'Unlock with credit', creditDone: 'Unlocked with your credit!', planCourse: 'This course only', planGroup: 'Whole group: {name}',
     planMonthly: 'Monthly plan — pick groups', assignment: 'Submit assignment (PDF to instructor)',

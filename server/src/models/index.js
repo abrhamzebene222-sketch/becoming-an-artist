@@ -70,8 +70,6 @@ export const Course = model('Course', new Schema({
   summaryAm: String,
   learningOutcomes: String,
   deliverables: String,
-  keywords: { type: String, trim: true, default: '' },     // search keywords (English) — comma or space separated
-  keywordsAm: { type: String, trim: true, default: '' },   // search keywords (Amharic)
   evaluationCriteria: { type: [CriterionSchema], default: [] },
   // Free courses can be watched without an account. Paid courses need login + payment.
   isFree: { type: Boolean, default: false },
@@ -99,10 +97,9 @@ export const Lesson = model('Lesson', new Schema({
   course: ref('Course', true),
   title: { type: String, required: true, trim: true },
   titleAm: { type: String, trim: true },
-  keywords: { type: String, trim: true, default: '' },     // search keywords (English)
-  keywordsAm: { type: String, trim: true, default: '' },   // search keywords (Amharic)
-  subtitle: { type: String, trim: true, default: '' },     // one-sentence description shown under the lesson title and in news previews
-  subtitleAm: { type: String, trim: true, default: '' },
+  // Stable slot id from server/lesson-slots.json (e.g. 'L014'). AI-written lesson files are matched
+  // to their place in the tree by this id; lessons created in the admin panel simply have none.
+  slot: { type: String, trim: true, index: true, sparse: true },
   kind: { type: String, enum: ['video', 'pdf', 'blocks'], required: true },
   cloudPublicId: { type: String, required: needsFile },
   cloudResourceType: { type: String, enum: ['video', 'image'], required: needsFile }, // PDFs are "image" in Cloudinary
@@ -113,24 +110,6 @@ export const Lesson = model('Lesson', new Schema({
   durationSec: Number,
   isPreview: { type: Boolean, default: false },
   sortOrder: { type: Number, default: 0 },
-}, opts()));
-
-// ---------- News feed (number 5) ----------
-// A news item can open a lesson, a course or an outside link. Lesson/course links are stored as ids and turned into
-// app paths when the item is read, so they stay correct if a course slug changes.
-export const NewsItem = model('NewsItem', new Schema({
-  title: { type: String, required: true, trim: true },
-  titleAm: { type: String, trim: true, default: '' },
-  summary: { type: String, default: '' },
-  summaryAm: { type: String, default: '' },
-  body: { type: String, default: '' },        // full text shown on the "Read more" page
-  bodyAm: { type: String, default: '' },
-  image: MediaSchema,
-  linkKind: { type: String, enum: ['none', 'lesson', 'course', 'url'], default: 'none' },
-  lesson: { type: Schema.Types.ObjectId, ref: 'Lesson' },
-  course: { type: Schema.Types.ObjectId, ref: 'Course' },
-  linkUrl: { type: String, default: '' },
-  isActive: { type: Boolean, default: true, index: true },
 }, opts()));
 
 // ---------- Self-evaluation documents (number 7) ----------

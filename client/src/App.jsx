@@ -33,6 +33,7 @@ import TelegramBot from './pages/admin/TelegramBot.jsx';
 import Assignments from './pages/admin/Assignments.jsx';
 import AdminSelfEvals from './pages/admin/SelfEvals.jsx';
 import AdminNews from './pages/admin/News.jsx';
+import LessonEditor from './pages/admin/LessonEditor.jsx';
 
 function Loading() {
   const { t } = useI18n();
@@ -108,6 +109,7 @@ export default function App() {
         <Route path="assignments" element={<Assignments />} />
         <Route path="self-evals" element={<AdminSelfEvals />} />
         <Route path="news" element={<AdminNews />} />
+        <Route path="lessons/:id/edit" element={<LessonEditor />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

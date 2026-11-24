@@ -21,6 +21,7 @@ import assignmentRoutes from './routes/assignments.js';
 import selfEvalRoutes from './routes/selfEvals.js';
 import newsRoutes from './routes/news.js';
 import adminNewsRoutes from './routes/adminNews.js';
+import adminExportRoutes from './routes/adminExport.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,6 +56,7 @@ app.use('/api/media', mediaRoutes);
 app.use('/api/self-evals', selfEvalRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin', adminNewsRoutes);
+app.use('/api/admin', adminExportRoutes);
 app.use('/api/admin', adminGrowthRoutes);
 app.use('/api', newsRoutes);
 app.use('/api', growthRoutes);

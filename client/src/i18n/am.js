@@ -7,7 +7,7 @@ export default {
     dashboard: 'ዋና ገጽ', catalog: 'የኮርሶች ዝርዝር', enrolled: 'የተመዘገብኩባቸው ኮርሶች', sessions: 'የግል (1 ለ 1) ትምህርት',
     request: 'ኮርስ ይጠይቁ', teach: 'ከእኛ ጋር ያስተምሩ', signOut: 'ውጣ', signIn: 'ግባ', signUp: 'መለያ ፍጠር',
     monthlyAccess: 'ወርሃዊ ምዝገባ', monthlyAccessText: 'ሁሉንም የክፍያ ኮርሶች ይክፈቱ እና ከእያንዳንዱ ኮርስ ዋጋ ይቆጥቡ።',
-    viewSubscription: 'ምዝገባውን ይመልከቱ', menu: 'ማውጫ ክፈት', closeMenu: 'ማውጫ ዝጋ', back: 'ተመለስ', search: 'ኮርሶችንና ትምህርቶችን ፈልግ', searchPlaceholder: 'ለምሳሌ፦ ፐርስፔክቲቭ፣ ቀለም፣ የመስመር ጥራት',
+    viewSubscription: 'ምዝገባውን ይመልከቱ', menu: 'ማውጫ ክፈት', search: 'ኮርሶችንና ትምህርቶችን ፈልግ', searchPlaceholder: 'ለምሳሌ፦ ፐርስፔክቲቭ፣ ቀለም፣ የመስመር ጥራት',
     studentNav: 'የተማሪ ማውጫ', adminNav: 'የአስተዳዳሪ ማውጫ',
     payments: 'ክፍያዎች', bookings: 'የግል ትምህርት ቀጠሮዎች', requests: 'የኮርስ ጥያቄዎች', teachers: 'የመምህራን ማመልከቻዎች',
     courses: 'ኮርሶች እና ሚዲያ', settings: 'ቅንብሮች እና ዋጋ', users: 'ተጠቃሚዎች እና ሚናዎች', studentView: 'የተማሪ እይታ',
@@ -207,6 +207,7 @@ export default {
     youtubeUrl: 'የYouTube ሊንክ', caption: 'መግለጫ (አማራጭ)', up: 'ወደ ላይ', down: 'ወደ ታች', invalidYoutube: 'ትክክለኛ የYouTube ሊንክ ያስገቡ።',
     extra: 'ከቪዲዮው በታች ተጨማሪ ማስታወሻ እና YouTube (አማራጭ)', previewLesson: 'ነፃ ፕሪቪው ትምህርት — ኮርሱን ለመገምገም ማንም ሊከፍተው ይችላል',
     editContent: 'ይዘቱን አርትዕ', saveContent: 'ይዘቱን አስቀምጥ', cancel: 'ይቅር', empty: 'የጽሑፍ ሳጥኖችን፣ ምስሎችን ወይም የYouTube ቪዲዮዎችን ያክሉ።',
+    editorTitle: 'ትምህርት አርትዕ', closeWindow: 'ይህን መስኮት ዝጋ', lessonMissing: 'ይህ ትምህርት አልተገኘም።',
   },
   boards: {
     news: 'የዕለቱ ዜና እና ማስታወቂያዎች', community: 'ማህበረሰብ እና ቴሌግራም', referral: 'ግብዣ እና ስፖንሰር',
@@ -220,7 +221,7 @@ export default {
   detail: {
     noPreview: 'ለዚህ ኮርስ ነጻ ፕሪቪው የለም', noPreviewEn: 'No free preview available for this course.',
     locked: '🔒 ተቆልፏል', unlocked: 'ተከፍቷል', previewTag: 'ነፃ ፕሪቪው', open: 'ትምህርቱን ክፈት', close: 'ትምህርቱን ዝጋ',
-    loadingLesson: 'ትምህርቱ በመጫን ላይ…', offline: 'ከመስመር ውጭ ነዎት — የተቀመጠው ቅጂ እየታየ ነው።', groupLocked: 'ይህ የኮርስ ቡድን ተቆልፏል',
+    comingSoon: 'የትምህርቱ ይዘት በቅርቡ ይመጣል።', loadingLesson: 'ትምህርቱ በመጫን ላይ…', offline: 'ከመስመር ውጭ ነዎት — የተቀመጠው ቅጂ እየታየ ነው።', groupLocked: 'ይህ የኮርስ ቡድን ተቆልፏል',
     buyGroup: 'ሙሉውን ቡድን ይግዙ', ownedGroup: 'ይህ ቡድን የእርስዎ ነው', orCredit: 'ክሬዲት ይጠቀሙ ({amount} አለዎት)',
     useCredit: 'በክሬዲት ክፈት', creditDone: 'በክሬዲትዎ ተከፍቷል!', planCourse: 'ይህ ኮርስ ብቻ', planGroup: 'ሙሉ ቡድን፦ {name}',
     planMonthly: 'ወርሃዊ ዕቅድ — ቡድኖችን ይምረጡ', assignment: 'አሳይንመንት ያስገቡ (PDF ለአስተማሪው)',

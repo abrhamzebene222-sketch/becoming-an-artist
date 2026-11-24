@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+import { Link } from 'react-router-dom';
 import { cdn } from '../api.js';
 import { useI18n } from '../i18n/index.jsx';
 import useRotator from '../lib/useRotator.js';
@@ -64,6 +66,18 @@ export default function PromoBoard({ board, items, telegram, onShare }) {
                           <Icon name="send" size={15} />{t('boards.shareTelegram')}
                         </button>
                       )}
+                      {p.newsId && (Capacitor.isNativePlatform()
+                        ? (
+                          <Link to={`/news/${p.newsId}`} tabIndex={i === current ? 0 : -1}
+                            className="btn py-2 px-3.5 text-sm border border-cyan-200/60 text-cyan-50 hover:border-cyan-100">
+                            {t('news.readMore')} ↗
+                          </Link>
+                        ) : (
+                          <a href={`/news/${p.newsId}`} target="_blank" rel="noreferrer" tabIndex={i === current ? 0 : -1}
+                            className="btn py-2 px-3.5 text-sm border border-cyan-200/60 text-cyan-50 hover:border-cyan-100">
+                            {t('news.readMore')} ↗
+                          </a>
+                        ))}
                       {linkUrl && (
                         <a href={linkUrl} target="_blank" rel="noreferrer" tabIndex={i === current ? 0 : -1}
                           className="btn py-2 px-3.5 text-sm border border-cyan-200/60 text-cyan-50 hover:border-cyan-100">
