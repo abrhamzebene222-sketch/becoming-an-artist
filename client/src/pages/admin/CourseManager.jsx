@@ -8,7 +8,7 @@ import BlockEditor, { withKeys, stripKeys } from '../../components/BlockEditor.j
 import { buildTree, flatten, subtreeIds, indexTree } from '../../lib/tree.js';
 
 const EMPTY_COURSE = {
-  title: '', titleAm: '', summary: '', summaryAm: '', learningOutcomes: '', deliverables: '',
+  title: '', titleAm: '', summary: '', summaryAm: '', learningOutcomes: '', deliverables: '', keywords: '', keywordsAm: '',
   evaluationCriteria: [{ criterion: '', weight: 25 }], isFree: false, priceEtb: 0, isPublished: false, submissionLink: '',
 };
 const EMPTY_GROUP = { title: '', titleAm: '', description: '', descriptionAm: '', parent: null, isFree: false, priceEtb: 0, monthlyPriceEtb: 0, slides: [] };
@@ -234,6 +234,11 @@ function CourseEditor({ course, roots, links, onSaved, onDeleted }) {
         <label className="label">{t('admin.courses.summaryEn')}<textarea className="input min-h-20" value={sel.summary || ''} onChange={(e) => set({ summary: e.target.value })} /></label>
         <label className="label">{t('admin.courses.summaryAm')}<textarea className="input min-h-20" lang="am" value={sel.summaryAm || ''} onChange={(e) => set({ summaryAm: e.target.value })} /></label>
       </div>
+      <div className="grid md:grid-cols-2 gap-4">
+        <label className="label">{t('admin.courses.keywords')}<input className="input" value={sel.keywords || ''} onChange={(e) => set({ keywords: e.target.value })} /></label>
+        <label className="label">{t('admin.courses.keywordsAm')}<input className="input" lang="am" value={sel.keywordsAm || ''} onChange={(e) => set({ keywordsAm: e.target.value })} /></label>
+        <p className="text-xs text-muted md:col-span-2">{t('admin.courses.keywordsHint')}</p>
+      </div>
       <label className="label">{t('admin.courses.outcomes')}<textarea className="input min-h-20" value={sel.learningOutcomes || ''} onChange={(e) => set({ learningOutcomes: e.target.value })} /></label>
       <label className="label">{t('admin.courses.deliverables')}<textarea className="input min-h-20" value={sel.deliverables || ''} onChange={(e) => set({ deliverables: e.target.value })} /></label>
 
@@ -287,7 +292,7 @@ async function uploadToCloudinary(file, kind, account, onProgress) {
 
 const mb = (b) => (b ? `${(b / 1048576).toFixed(1)} MB` : '');
 const mins = (s) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '');
-const EMPTY_LESSON = { title: '', publicId: '', kind: 'blocks', isPreview: false, account: 'env', blocks: [] };
+const EMPTY_LESSON = { title: '', subtitle: '', subtitleAm: '', keywords: '', keywordsAm: '', publicId: '', kind: 'blocks', isPreview: false, account: 'env', blocks: [] };
 
 function Lessons({ course, onChange }) {
   const { t } = useI18n();
@@ -296,6 +301,7 @@ function Lessons({ course, onChange }) {
   const [err, setErr] = useState('');
   const [progress, setProgress] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [newsMsg, setNewsMsg] = useState({ id: '', text: '', error: false });
   const fileMode = form.kind !== 'blocks';
 
   const pickFile = async (file) => {
@@ -320,8 +326,16 @@ function Lessons({ course, onChange }) {
   const togglePreview = async (l) => { await api(`/admin/lessons/${l.id}`, { method: 'PUT', body: { isPreview: !l.isPreview } }); onChange(); };
   const saveBlocks = async () => {
     setErr('');
-    try { await api(`/admin/lessons/${editing.id}`, { method: 'PUT', body: { blocks: stripKeys(editing.blocks) } }); setEditing(null); onChange(); }
+    try {
+      await api(`/admin/lessons/${editing.id}`, { method: 'PUT', body: { blocks: stripKeys(editing.blocks), keywords: editing.keywords, keywordsAm: editing.keywordsAm, subtitle: editing.subtitle, subtitleAm: editing.subtitleAm } });
+      setEditing(null); onChange();
+    }
     catch (e) { setErr(e.message); }
+  };
+  const addToNews = async (l) => {
+    setNewsMsg({ id: l.id, text: '', error: false });
+    try { await api(`/admin/lessons/${l.id}/news`, { method: 'POST' }); setNewsMsg({ id: l.id, text: t('admin.courses.addedToNews'), error: false }); }
+    catch (e) { setNewsMsg({ id: l.id, text: e.message, error: true }); }
   };
   const lessonIcon = (l) => (l.kind === 'pdf' ? 'file' : l.kind === 'video' ? 'play' : 'text');
 
@@ -340,14 +354,23 @@ function Lessons({ course, onChange }) {
                 <button className={`px-3 py-2 rounded-lg text-xs border ${l.isPreview ? 'border-teal text-mint' : 'border-line-strong text-muted'}`} onClick={() => togglePreview(l)} aria-pressed={l.isPreview}>
                   {l.isPreview ? t('admin.courses.freePreview') : t('admin.courses.locked')}
                 </button>
-                <button className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint" onClick={() => setEditing(editing?.id === l.id ? null : { id: l.id, blocks: withKeys(l.blocks) })}>
+                <button className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint" onClick={() => setEditing(editing?.id === l.id ? null : { id: l.id, blocks: withKeys(l.blocks), keywords: l.keywords || '', keywordsAm: l.keywordsAm || '', subtitle: l.subtitle || '', subtitleAm: l.subtitleAm || '' })}>
                   {t('blocks.editContent')}
                 </button>
+                <button className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint" onClick={() => addToNews(l)}>{t('admin.courses.addToNews')}</button>
                 <button className="px-3 py-2 rounded-lg text-xs border border-[#5A3A37] text-[#F2A7A0]" onClick={() => del(l.id)}>{t('common.remove')}</button>
               </span>
             </div>
+            {newsMsg.id === l.id && newsMsg.text && <p className={`text-xs ${newsMsg.error ? 'text-[#F2A7A0]' : 'text-mint'}`} role="status">{newsMsg.text}</p>}
             {editing?.id === l.id && (
               <div className="rounded-xl border border-line p-4 flex flex-col gap-3">
+                <div className="grid md:grid-cols-2 gap-3">
+                  <label className="label">{t('admin.courses.subtitle')}<input className="input" maxLength={300} value={editing.subtitle} onChange={(e) => setEditing({ ...editing, subtitle: e.target.value })} /></label>
+                  <label className="label">{t('admin.courses.subtitleAm')}<input className="input" lang="am" maxLength={300} value={editing.subtitleAm} onChange={(e) => setEditing({ ...editing, subtitleAm: e.target.value })} /></label>
+                  <label className="label">{t('admin.courses.keywords')}<input className="input" value={editing.keywords} onChange={(e) => setEditing({ ...editing, keywords: e.target.value })} /></label>
+                  <label className="label">{t('admin.courses.keywordsAm')}<input className="input" lang="am" value={editing.keywordsAm} onChange={(e) => setEditing({ ...editing, keywordsAm: e.target.value })} /></label>
+                  <p className="text-xs text-muted md:col-span-2">{t('admin.courses.keywordsHint')}</p>
+                </div>
                 <BlockEditor value={editing.blocks} onChange={(blocks) => setEditing({ ...editing, blocks })} />
                 <div className="flex gap-2">
                   <button className="btn-primary py-2" onClick={saveBlocks}>{t('blocks.saveContent')}</button>
@@ -374,6 +397,14 @@ function Lessons({ course, onChange }) {
               ))}
             </div>
           </fieldset>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <label className="label">{t('admin.courses.subtitle')}<input className="input" maxLength={300} value={form.subtitle} onChange={(e) => setForm({ ...form, subtitle: e.target.value })} /></label>
+          <label className="label">{t('admin.courses.subtitleAm')}<input className="input" lang="am" maxLength={300} value={form.subtitleAm} onChange={(e) => setForm({ ...form, subtitleAm: e.target.value })} /></label>
+          <label className="label">{t('admin.courses.keywords')}<input className="input" value={form.keywords} onChange={(e) => setForm({ ...form, keywords: e.target.value })} /></label>
+          <label className="label">{t('admin.courses.keywordsAm')}<input className="input" lang="am" value={form.keywordsAm} onChange={(e) => setForm({ ...form, keywordsAm: e.target.value })} /></label>
+          <p className="text-xs text-muted md:col-span-2">{t('admin.courses.keywordsHint')}</p>
         </div>
 
         {fileMode && (

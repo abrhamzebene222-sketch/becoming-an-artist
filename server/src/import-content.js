@@ -38,6 +38,23 @@ async function findCat(slug) {
   return d;
 }
 
+// Block types the app understands (see models/index.js). Unknown types or empty steps are reported in the dry run.
+const BLOCK_TYPES = new Set(['text', 'image', 'youtube', 'heading', 'step', 'callout']);
+function checkBlocks(title, blocks = [], indent) {
+  blocks.forEach((b, i) => {
+    const where = `${indent}  ⚠ "${title}" block ${i + 1}`;
+    if (!BLOCK_TYPES.has(b.type)) log(`${where}: unknown type "${b.type}"`);
+    else if (['text', 'heading', 'step', 'callout'].includes(b.type) && !(b.text || '').trim() && !(b.textAm || '').trim()) log(`${where} (${b.type}): no text`);
+    if (b.type === 'callout' && b.variant && !['tip', 'warning'].includes(b.variant)) log(`${where}: callout variant must be "tip" or "warning"`);
+    if ((b.type === 'image' || b.image) && b.image && !(b.image.url && b.image.publicId)) log(`${where}: images must be uploaded in the app; this image will be ignored`);
+  });
+}
+
+// Imported blocks never carry real images (those are uploaded in the app): drop incomplete images so saving cannot fail.
+const importable = (blocks = []) => blocks
+  .filter((b) => b.type !== 'image' || (b.image?.url && b.image?.publicId))
+  .map((b) => ((b.image && !(b.image.url && b.image.publicId)) ? (({ image, ...rest }) => rest)(b) : b));
+
 async function addLessons(course, lessons, indent) {
   const real = course && !course.virtual;
   const last = real ? await Lesson.findOne({ course: course._id }).sort({ sortOrder: -1 }) : null;
@@ -47,8 +64,9 @@ async function addLessons(course, lessons, indent) {
     const exists = real ? await Lesson.findOne({ course: course._id, title: ls.title }) : null;
     if (exists) { stats.sLessons += 1; continue; }
     stats.lessons += 1; log(`${indent}+ lesson: ${ls.title}`);
+    checkBlocks(ls.title, ls.blocks, indent);
     if (APPLY && real) {
-      await Lesson.create({ course: course._id, title: ls.title, kind: 'blocks', blocks: ls.blocks, sortOrder: next, isPreview: !hadAny && li === 0 });
+      await Lesson.create({ course: course._id, title: ls.title, kind: 'blocks', blocks: importable(ls.blocks), sortOrder: next, isPreview: !hadAny && li === 0 });
       next += 1;
     }
   }

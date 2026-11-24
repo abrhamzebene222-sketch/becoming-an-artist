@@ -18,6 +18,9 @@ import studentRoutes from './routes/student.js';
 import adminGrowthRoutes from './routes/adminGrowth.js';
 import growthRoutes from './routes/growth.js';
 import assignmentRoutes from './routes/assignments.js';
+import selfEvalRoutes from './routes/selfEvals.js';
+import newsRoutes from './routes/news.js';
+import adminNewsRoutes from './routes/adminNews.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -49,8 +52,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api', catalogRoutes);
 app.use('/api', teacherRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/self-evals', selfEvalRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminNewsRoutes);
 app.use('/api/admin', adminGrowthRoutes);
+app.use('/api', newsRoutes);
 app.use('/api', growthRoutes);
 app.use('/api', assignmentRoutes);
 app.use('/api', studentRoutes);

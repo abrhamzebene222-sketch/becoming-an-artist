@@ -7,7 +7,7 @@ export default {
     dashboard: 'Dashboard', catalog: 'Course Catalog', enrolled: 'My Enrolled Courses', sessions: '1-on-1 Sessions',
     request: 'Request a Course', teach: 'Teach with Us', signOut: 'Sign out', signIn: 'Sign in', signUp: 'Create account',
     monthlyAccess: 'Monthly access', monthlyAccessText: 'Unlock every paid course and save on per-course prices.',
-    viewSubscription: 'View subscription', menu: 'Open menu', search: 'Search courses', searchPlaceholder: 'e.g. perspective, color',
+    viewSubscription: 'View subscription', menu: 'Open menu', closeMenu: 'Close menu', back: 'Back', search: 'Search courses & lessons', searchPlaceholder: 'e.g. perspective, color, line quality',
     studentNav: 'Student navigation', adminNav: 'Admin navigation',
     payments: 'Payments', bookings: '1-on-1 Bookings', requests: 'Course Requests', teachers: 'Teacher Applications',
     courses: 'Courses & Media', settings: 'Settings & Pricing', users: 'Users & Roles', studentView: 'Student view',
@@ -36,8 +36,13 @@ export default {
   },
   catalog: {
     title: 'Course Catalog', subtitle: 'An academic path through drawing, color, composition and anatomy.', filter: 'Filter',
-    filterPlaceholder: 'Search by name or topic', noMatch: 'No courses match "{q}".', requestIt: 'Request this course',
+    filterPlaceholder: 'Search courses, lessons or keywords', noMatch: 'No courses match "{q}".', requestIt: 'Request this course',
     majorGroup: 'Chapter {n}', guestBanner: "You're browsing as a guest. Free courses are open to everyone — sign in to buy paid courses.",
+  },
+  search: {
+    results: 'Search results', courses: 'Courses', lessons: 'Lessons', free: 'Free', searching: 'Searching…',
+    noResults: 'Nothing found for "{q}".', seeAll: 'See all results', lessonsFor: 'Lessons matching "{q}"',
+    moreLessons: '+{n} more lessons — type more letters to narrow the search.',
   },
   course: {
     locked: 'Unlock this course to start watching', signInToWatch: 'Sign in to watch this paid course',
@@ -149,6 +154,8 @@ export default {
       published: 'Published (students are notified when first published)', titleEn: 'Title (English)', titleAm: 'Title (Amharic)',
       group: 'Major group', free: 'Free course — anyone can watch without logging in', price: 'Price per course (ETB)',
       submissionLink: 'Assignment submission link', useDefault: 'Use default link', summaryEn: 'Summary (English)', summaryAm: 'Summary (Amharic)',
+      keywords: 'Search keywords (English)', keywordsAm: 'Search keywords (Amharic)',
+      keywordsHint: 'Separate with commas. Students will find this item by these words even when they are not in the title.',
       outcomes: 'Learning outcomes', deliverables: 'Expected deliverables', criteria: 'Evaluation criteria', total: 'total {n}%',
       criterion: 'Criterion', weight: 'Weight %', addCriterion: '+ Add criterion', saveCourse: 'Save course',
       deleteConfirm: 'Delete "{title}" and its lessons? Files in Cloudinary are not deleted.', studentsSee: 'Students see: {price}', draft: 'draft',

@@ -1,17 +1,23 @@
 // Public pages: nested curriculum, course details, pricing, promo boards, payment accounts, contacts. No login required.
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   Category, Course, Lesson, SubmissionLink, ContactInfo, Promo,
 } from '../models/index.js';
 import { optionalAuth } from '../auth.js';
-import { fail } from '../i18n.js';
+import { fail, msg } from '../i18n.js';
 import {
   ah, pricing, getSetting, hasCourseAccess, hasGroupAccess, groupSubscriptionQuote, groupPrice,
 } from '../lib.js';
 import { breadcrumb } from '../tree.js';
 import { botConfig } from '../telegram.js';
+import { searchAll, matchingCourseIds, textMatches } from '../search.js';
 
 const router = Router();
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000, limit: 120, standardHeaders: true, legacyHeaders: false,
+  handler: (req, res) => res.status(429).json({ error: msg(req, 'tooMany') }),
+});
 
 async function lessonCounts() {
   const [all, previews] = await Promise.all([
@@ -30,11 +36,12 @@ async function lessonCounts() {
  *   lessonCount — total lessons in the subtree (used by the monthly plan builder)
  */
 router.get('/catalog', ah(async (req, res) => {
-  const q = String(req.query.q || '').trim().toLowerCase();
-  const [cats, courses, counts] = await Promise.all([
+  const q = String(req.query.q || '').trim().slice(0, 80);
+  const [cats, courses, counts, matched] = await Promise.all([
     Category.find().sort({ sortOrder: 1, createdAt: 1 }).lean(),
     Course.find({ isPublished: true }).sort({ sortOrder: 1, createdAt: 1 }),
     lessonCounts(),
+    q ? matchingCourseIds(q) : null, // courses found by their own text/keywords OR through one of their lessons
   ]);
   const ids = new Set(cats.map((c) => String(c._id)));
   const nodes = new Map(cats.map((c) => {
@@ -50,12 +57,11 @@ router.get('/catalog', ah(async (req, res) => {
   const roots = [];
   for (const n of nodes.values()) (n.parent ? nodes.get(n.parent).children : roots).push(n);
 
-  const matches = (text) => !q || text.toLowerCase().includes(q);
   // Post-order walk: filter by search, compute subtree courses & lesson totals
   const walk = (n, trail) => {
     const selfText = `${n.title} ${n.titleAm} ${n.description || ''} ${n.descriptionAm || ''}`;
-    const hit = matches(`${trail} ${selfText}`);
-    n.ownCourses = n.ownCourses.filter((c) => hit || matches([c.title, c.titleAm, c.summary, c.summaryAm, c.learningOutcomes].join(' ')));
+    const hit = !q || textMatches(q, `${trail} ${selfText}`);   // the group's own name matches → show all its courses
+    n.ownCourses = n.ownCourses.filter((c) => hit || matched.has(String(c.id)));
     n.children = n.children.map((ch) => walk(ch, `${trail} ${selfText}`)).filter(Boolean);
     n.courses = [...n.ownCourses, ...n.children.flatMap((ch) => ch.courses)];
     n.lessonCount = n.courses.reduce((s, c) => s + (c.isFree ? 0 : c.lessonCount), 0);
@@ -70,7 +76,7 @@ router.get('/courses/:slug', optionalAuth, ah(async (req, res) => {
   const course = await Course.findOne({ slug: req.params.slug, isPublished: true });
   if (!course) return fail(req, res, 404, 'courseNotFound');
   const [lessons, link, access, crumbs] = await Promise.all([
-    Lesson.find({ course: course._id }, 'title kind isPreview durationSec sortOrder blocks.type').sort({ sortOrder: 1, createdAt: 1 }),
+    Lesson.find({ course: course._id }, 'title subtitle subtitleAm kind isPreview durationSec sortOrder blocks.type').sort({ sortOrder: 1, createdAt: 1 }),
     course.submissionLink ? SubmissionLink.findById(course.submissionLink) : SubmissionLink.findOne({ isDefault: true }),
     hasCourseAccess(req.user, course),
     breadcrumb(course.category),
@@ -97,6 +103,17 @@ router.get('/courses/:slug', optionalAuth, ah(async (req, res) => {
     hasAccess: access,
     loggedIn: !!req.user,
   });
+}));
+
+/**
+ * Search courses AND lessons (titles, Amharic titles, keywords, summaries, group names — never lesson body text).
+ *   GET /api/search?q=perspective&courses=6&lessons=12
+ * → { q, courseTotal, lessonTotal, courses:[…], lessons:[…] }   (public, same as the catalogue)
+ */
+router.get('/search', searchLimiter, ah(async (req, res) => {
+  const cap = (v, def, max) => Math.min(max, Math.max(1, parseInt(v, 10) || def));
+  res.set('Cache-Control', 'no-store');
+  res.json(await searchAll(String(req.query.q || ''), { courses: cap(req.query.courses, 8, 20), lessons: cap(req.query.lessons, 20, 50) }));
 }));
 
 router.get('/pricing', ah(async (_req, res) => res.json(await pricing())));

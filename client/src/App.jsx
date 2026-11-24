@@ -2,17 +2,23 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './api.js';
 import { useI18n } from './i18n/index.jsx';
 import Layout from './components/Layout.jsx';
+import BackButtonHandler from './components/BackButtonHandler.jsx';
 import Login from './pages/Login.jsx';
 import TeacherApply from './pages/TeacherApply.jsx';
 import Dashboard from './pages/student/Dashboard.jsx';
 import Catalog from './pages/student/Catalog.jsx';
 import CourseDetail from './pages/student/CourseDetail.jsx';
+import LessonPage from './pages/student/LessonPage.jsx';
+import News from './pages/student/News.jsx';
+import NewsDetail from './pages/student/NewsDetail.jsx';
 import Enrolled from './pages/student/Enrolled.jsx';
 import Sessions from './pages/student/Sessions.jsx';
 import RequestCourse from './pages/student/RequestCourse.jsx';
 import Subscribe from './pages/student/Subscribe.jsx';
 import Rewards from './pages/student/Rewards.jsx';
 import Assignment from './pages/student/Assignment.jsx';
+import SelfEvals from './pages/student/SelfEvals.jsx';
+import SelfEvalView from './pages/student/SelfEvalView.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
 import Payments from './pages/admin/Payments.jsx';
 import Bookings from './pages/admin/Bookings.jsx';
@@ -25,6 +31,8 @@ import CloudinaryAccounts from './pages/admin/CloudinaryAccounts.jsx';
 import Promos from './pages/admin/Promos.jsx';
 import TelegramBot from './pages/admin/TelegramBot.jsx';
 import Assignments from './pages/admin/Assignments.jsx';
+import AdminSelfEvals from './pages/admin/SelfEvals.jsx';
+import AdminNews from './pages/admin/News.jsx';
 
 function Loading() {
   const { t } = useI18n();
@@ -60,6 +68,8 @@ function Home() {
 
 export default function App() {
   return (
+    <>
+    <BackButtonHandler />
     <Routes>
       <Route path="/login" element={<Login />} />
 
@@ -68,6 +78,9 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="catalog" element={<Catalog />} />
         <Route path="courses/:slug" element={<CourseDetail />} />
+        <Route path="courses/:slug/lessons/:lessonId" element={<LessonPage />} />
+        <Route path="news" element={<News />} />
+        <Route path="news/:id" element={<NewsDetail />} />
         <Route path="teach" element={<TeacherApply />} />
         <Route path="subscribe" element={<Subscribe />} />
         <Route path="enrolled" element={<RequireLogin><Enrolled /></RequireLogin>} />
@@ -75,6 +88,8 @@ export default function App() {
         <Route path="request" element={<RequireLogin><RequestCourse /></RequireLogin>} />
         <Route path="rewards" element={<RequireLogin><Rewards /></RequireLogin>} />
         <Route path="assignment" element={<RequireLogin><Assignment /></RequireLogin>} />
+        <Route path="self-evals" element={<RequireLogin><SelfEvals /></RequireLogin>} />
+        <Route path="self-evals/:id" element={<RequireLogin><SelfEvalView /></RequireLogin>} />
       </Route>
 
       {/* Admin portal */}
@@ -91,9 +106,12 @@ export default function App() {
         <Route path="promos" element={<Promos />} />
         <Route path="telegram" element={<TelegramBot />} />
         <Route path="assignments" element={<Assignments />} />
+        <Route path="self-evals" element={<AdminSelfEvals />} />
+        <Route path="news" element={<AdminNews />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

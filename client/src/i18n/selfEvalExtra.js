@@ -1,0 +1,66 @@
+// Extra strings for the self-evaluation documents (number 7). Merged on top of en.js / am.js by i18n/index.jsx.
+export const en = {
+  nav: { selfEval: 'Self-Evaluation', selfEvals: 'Self-Evaluation Docs' },
+  tokens: {
+    rule: '1 token = 1 ETB. Tokens never expire. Spend them on single lessons, whole courses, whole groups or self-evaluation documents, at your own pace.',
+  },
+  rewards: { reasons: { unlock_selfeval: 'Bought a self-evaluation document' } },
+  selfEval: {
+    title: 'Self-Evaluation Documents',
+    intro: 'Choose the lessons you want a self-evaluation document for and pay with your tokens. Buy as many as you like — there is no minimum.',
+    searchLabel: 'Search lessons', searchPlaceholder: 'Type a lesson name…',
+    hintEmpty: 'These lessons have a document ready. Search to find any other lesson.',
+    noResults: 'No lessons found.', noneYet: 'No self-evaluation documents are available yet.',
+    notPrepared: 'A self-evaluation document has not been prepared for this lesson yet.',
+    open: 'Open', selected: '{n} selected', total: 'Total: {n} tokens', buy: 'Pay with tokens',
+    confirm: 'Spend {n} tokens on {count} document(s)? Your balance: {have}.', yes: 'Yes, buy',
+    success: 'Done! {count} document(s) added to "My documents".',
+    partial: '{count} document(s) bought. The rest could not be bought: not enough tokens.',
+    mine: 'My documents', mineEmpty: 'You have not bought any yet.',
+    back: 'Back to documents', docOf: 'Self-evaluation document', openLesson: 'Open the lesson',
+    locked: 'Buy this document first to read it.',
+  },
+  selfEvalAdmin: {
+    title: 'Self-Evaluation Documents',
+    intro: 'Write one self-evaluation document per lesson. Students buy it with tokens and read it inside the app.',
+    findLesson: 'Find a lesson', prepared: 'Prepared documents', none: 'No documents yet. Search for a lesson above to write the first one.',
+    newDoc: 'New document for this lesson', editing: 'Editing the document of this lesson', close: 'Close',
+    price: 'Price (tokens = ETB)', priceHint: 'Starts at {n}. Change it for this document only.',
+    published: 'Visible to students', hidden: 'Hidden', buyers: 'Bought by {n}',
+    deleteConfirm: 'Delete this document?', yesDelete: 'Yes, delete',
+    noDeleteHint: 'Students already bought this document, so it cannot be deleted. Untick "Visible to students" to hide it from new buyers.',
+  },
+};
+
+export const am = {
+  nav: { selfEval: 'መገምገሚያ ሰነድ', selfEvals: 'መገምገሚያ ሰነዶች' },
+  tokens: {
+    rule: '1 ቶክን = 1 ብር። ቶክኖች ጊዜ አያልፍባቸውም። በራስዎ ፍጥነት ለአንድ ትምህርት፣ ለሙሉ ኮርስ፣ ለሙሉ ቡድን ወይም ለመገምገሚያ ሰነድ መጠቀም ይችላሉ።',
+  },
+  rewards: { reasons: { unlock_selfeval: 'የመገምገሚያ ሰነድ ገዙ' } },
+  selfEval: {
+    title: 'የራስ መገምገሚያ ሰነዶች',
+    intro: 'መገምገሚያ ሰነድ የሚፈልጉባቸውን ትምህርቶች ይምረጡ እና በቶክንዎ ይክፈሉ። የፈለጉትን ያህል ይግዙ — ዝቅተኛ ብዛት የለም።',
+    searchLabel: 'ትምህርት ይፈልጉ', searchPlaceholder: 'የትምህርት ስም ይጻፉ…',
+    hintEmpty: 'እነዚህ ትምህርቶች ሰነዳቸው ተዘጋጅቷል። ሌላ ትምህርት ለማግኘት ይፈልጉ።',
+    noResults: 'ምንም ትምህርት አልተገኘም።', noneYet: 'እስካሁን የተዘጋጀ የመገምገሚያ ሰነድ የለም።',
+    notPrepared: 'ለዚህ ትምህርት የመገምገሚያ ሰነድ ገና አልተዘጋጀም።',
+    open: 'ክፈት', selected: '{n} ተመርጠዋል', total: 'ድምር፦ {n} ቶክን', buy: 'በቶክን ክፈል',
+    confirm: '{n} ቶክን ለ{count} ሰነድ ይጠቀማሉ? ቀሪ ሂሳብዎ፦ {have}።', yes: 'አዎ፣ ግዛ',
+    success: 'ተጠናቋል! {count} ሰነድ ወደ "የእኔ ሰነዶች" ተጨምሯል።',
+    partial: '{count} ሰነድ ተገዝቷል። የቀሩት በቂ ቶክን ስለሌለ አልተገዙም።',
+    mine: 'የእኔ ሰነዶች', mineEmpty: 'እስካሁን ምንም አልገዙም።',
+    back: 'ወደ ሰነዶች ተመለስ', docOf: 'የመገምገሚያ ሰነድ', openLesson: 'ትምህርቱን ክፈት',
+    locked: 'ይህን ሰነድ ለማንበብ መጀመሪያ ይግዙት።',
+  },
+  selfEvalAdmin: {
+    title: 'የመገምገሚያ ሰነዶች',
+    intro: 'ለእያንዳንዱ ትምህርት አንድ የመገምገሚያ ሰነድ ይጻፉ። ተማሪዎች በቶክን ገዝተው በአፑ ውስጥ ያነቡታል።',
+    findLesson: 'ትምህርት ይፈልጉ', prepared: 'የተዘጋጁ ሰነዶች', none: 'እስካሁን ሰነድ የለም። የመጀመሪያውን ለመጻፍ ከላይ ትምህርት ይፈልጉ።',
+    newDoc: 'ለዚህ ትምህርት አዲስ ሰነድ', editing: 'የዚህ ትምህርት ሰነድ እየተስተካከለ ነው', close: 'ዝጋ',
+    price: 'ዋጋ (ቶክን = ብር)', priceHint: 'መነሻው {n} ነው። ለዚህ ሰነድ ብቻ መቀየር ይችላሉ።',
+    published: 'ለተማሪዎች ይታይ', hidden: 'የተደበቀ', buyers: '{n} ሰው ገዝቷል',
+    deleteConfirm: 'ይህን ሰነድ ይሰረዝ?', yesDelete: 'አዎ፣ ሰርዝ',
+    noDeleteHint: 'ተማሪዎች ይህን ሰነድ ገዝተውታል፤ ስለዚህ መሰረዝ አይቻልም። ለአዲስ ገዢዎች ለመደበቅ "ለተማሪዎች ይታይ" የሚለውን ምልክት ያንሱ።',
+  },
+};

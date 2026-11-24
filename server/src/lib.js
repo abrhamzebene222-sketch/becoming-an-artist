@@ -1,6 +1,6 @@
 // Shared business rules: settings, course access, pricing (single course, whole groups, modular monthly plans).
 import {
-  Setting, Enrollment, GroupEnrollment, Subscription, Course, Lesson,
+  Setting, Enrollment, GroupEnrollment, Subscription, Course, Lesson, LessonUnlock, User, CreditTransaction,
 } from './models/index.js';
 import { ancestorIds, ancestorChain, descendantIds, normalizeSelection, getCategories } from './tree.js';
 
@@ -51,6 +51,65 @@ export async function hasCourseAccess(user, course) {
   const groups = await unlockedGroupIds(user.id);
   if (chainIds.some((id) => groups.has(id))) return true;
   return !!(await activeSubscription(user.id));
+}
+
+/** Course access, or this single lesson was unlocked with tokens, or the lesson is a free preview. */
+export async function hasLessonAccess(user, lesson, course) {
+  if (lesson?.isPreview) return true;
+  if (await hasCourseAccess(user, course)) return true;
+  if (!user) return false;
+  return !!(await LessonUnlock.exists({ user: user.id, lesson: lesson._id || lesson.id }));
+}
+
+// ---------- Tokens (1 token = 1 ETB; balance = User.creditEtb) ----------
+export const TOPUP_MIN = 100;
+export const TOPUP_MAX = 200000;
+
+/**
+ * Token prices for one course for one user.
+ * lesson price = ceil(course price / number of lessons), but never more than what is still unpaid on the course,
+ * so buying every lesson one by one costs exactly the course price (never more).
+ * Unlocking the whole course later costs the course price minus the tokens already spent on its lessons.
+ */
+export async function courseTokenInfo(userId, course, lessonCount) {
+  const price = course.isFree ? 0 : Math.max(0, Math.round(Number(course.priceEtb) || 0));
+  const base = lessonCount > 0 ? Math.ceil(price / lessonCount) : 0;
+  let spent = 0;
+  const unlockedIds = new Set();
+  if (userId) {
+    const rows = await LessonUnlock.find({ user: userId, course: course._id || course.id }, 'lesson paidEtb').lean();
+    for (const r of rows) { spent += r.paidEtb || 0; unlockedIds.add(String(r.lesson)); }
+  }
+  const courseRemaining = Math.max(0, price - spent);
+  return { price, base, spent, unlockedIds, courseRemaining, lessonPrice: Math.min(base, courseRemaining) };
+}
+
+/**
+ * Spend tokens safely:
+ *  1) deduct atomically (only if the balance is enough, so it can never go negative)
+ *  2) write the ledger row  3) grant() gives the access and returns true only if it was newly granted
+ * If anything fails, the tokens are given back and the ledger row is removed.
+ * Returns { balance } or { error: 'notEnoughCredit' | 'alreadyUnlocked' }.
+ */
+export async function spendTokens(userId, price, entry, grant) {
+  const amount = Math.round(price);
+  if (!(amount > 0)) return { error: 'nothingToPay' };
+  const u = await User.findOneAndUpdate({ _id: userId, creditEtb: { $gte: amount } }, { $inc: { creditEtb: -amount } }, { new: true });
+  if (!u) return { error: 'notEnoughCredit' };
+  let row;
+  try {
+    row = await CreditTransaction.create({ user: u._id, amountEtb: -amount, balanceAfter: u.creditEtb, ...entry });
+    if (!(await grant())) {
+      await CreditTransaction.deleteOne({ _id: row._id });
+      await User.updateOne({ _id: u._id }, { $inc: { creditEtb: amount } });
+      return { error: 'alreadyUnlocked' };
+    }
+  } catch (e) {
+    if (row) await CreditTransaction.deleteOne({ _id: row._id }).catch(() => {});
+    await User.updateOne({ _id: u._id }, { $inc: { creditEtb: amount } });
+    throw e;
+  }
+  return { balance: u.creditEtb };
 }
 
 /** Does the user already own this group (or one of its ancestors)? */
@@ -121,6 +180,49 @@ export async function groupSubscriptionQuote(selectedIds) {
   return { groups: ids, items, lessonCount, baseEtb, discountPercent, discountEtb, totalEtb: baseEtb - discountEtb, tier, tiers };
 }
 
+// ---------- 1-on-1 tutoring: hourly rate + fixed duration discounts ----------
+// Price = rate x hours x (1 - discount). Discounts are fixed here; admin only edits the per-hour rates in Settings.
+export const TUTORING_OPTIONS = [
+  { hours: 1, discountPercent: 0 },
+  { hours: 1.5, discountPercent: 10 },
+  { hours: 2, discountPercent: 15 },
+  { hours: 2.5, discountPercent: 20 },
+  { hours: 3, discountPercent: 25 },
+];
+export const TUTORING_CONTENT = ['theory', 'practical', 'both'];
+
+/** Per-hour rate (ETB) for a mode, from Settings. */
+export async function tutoringRate(mode) {
+  return Math.max(0, Number(await getSetting(mode === 'online' ? 'sessionPriceOnlineEtb' : 'sessionPriceInPersonEtb', 0)) || 0);
+}
+
+/**
+ * Validate the inputs and compute the full quote. Returns { error } (a message key) or { quote }.
+ * `hours` may arrive as a number or a string; it must match one of the allowed options exactly.
+ */
+export async function tutoringQuote({ mode, hours, contentType, theoryPercent }) {
+  if (!['online', 'in_person'].includes(mode)) return { error: 'bookingFields' };
+  const opt = TUTORING_OPTIONS.find((o) => o.hours === Number(hours));
+  if (!opt) return { error: 'bookingDuration' };
+  if (!TUTORING_CONTENT.includes(contentType)) return { error: 'bookingContent' };
+  let theory;
+  if (contentType === 'theory') theory = 100;
+  else if (contentType === 'practical') theory = 0;
+  else {
+    theory = Number(theoryPercent);
+    if (!Number.isInteger(theory) || theory < 10 || theory > 90 || theory % 10 !== 0) return { error: 'bookingSplit' };
+  }
+  const rate = await tutoringRate(mode);
+  const listPriceEtb = Math.round(rate * opt.hours);
+  const priceEtb = Math.round(rate * opt.hours * (1 - opt.discountPercent / 100));
+  return {
+    quote: {
+      mode, durationHours: opt.hours, contentType, theoryPercent: theory, practicalPercent: 100 - theory,
+      rateUsed: rate, discountPercent: opt.discountPercent, listPriceEtb, priceEtb, savingsEtb: listPriceEtb - priceEtb,
+    },
+  };
+}
+
 /** Legacy pricing (all paid courses monthly) + session prices + discount tiers. */
 export async function pricing() {
   const [agg] = await Course.aggregate([
@@ -139,6 +241,9 @@ export async function pricing() {
     usesFixedPrice: fixed > 0,
     sessionPriceOnline: Number(await getSetting('sessionPriceOnlineEtb', 0)),
     sessionPriceInPerson: Number(await getSetting('sessionPriceInPersonEtb', 0)),
+    // Both session prices above are PER HOUR. Duration discounts are fixed:
+    tutoringOptions: TUTORING_OPTIONS,
+    topup: { min: TOPUP_MIN, max: TOPUP_MAX },
     tiers: cleanTiers(await getSetting('subscriptionTiers', DEFAULT_TIERS)),
   };
 }

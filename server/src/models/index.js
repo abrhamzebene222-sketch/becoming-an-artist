@@ -70,6 +70,8 @@ export const Course = model('Course', new Schema({
   summaryAm: String,
   learningOutcomes: String,
   deliverables: String,
+  keywords: { type: String, trim: true, default: '' },     // search keywords (English) — comma or space separated
+  keywordsAm: { type: String, trim: true, default: '' },   // search keywords (Amharic)
   evaluationCriteria: { type: [CriterionSchema], default: [] },
   // Free courses can be watched without an account. Paid courses need login + payment.
   isFree: { type: Boolean, default: false },
@@ -81,12 +83,14 @@ export const Course = model('Course', new Schema({
 
 // Modular lesson content: alternating text boxes, images and YouTube embeds, in the admin's order.
 const BlockSchema = new Schema({
-  type: { type: String, enum: ['text', 'image', 'youtube'], required: true },
+  // heading = section title · step = numbered procedure step (text + optional image) · callout = tip / warning box
+  type: { type: String, enum: ['text', 'image', 'youtube', 'heading', 'step', 'callout'], required: true },
   text: String,
   textAm: String,
-  image: MediaSchema,
+  image: MediaSchema,        // image blocks, and the optional picture of a step
   caption: String,
   youtubeUrl: String,
+  variant: { type: String, enum: ['tip', 'warning'] }, // callout only
 });
 
 const needsFile = function needsFile() { return this.kind !== 'blocks'; };
@@ -95,6 +99,10 @@ export const Lesson = model('Lesson', new Schema({
   course: ref('Course', true),
   title: { type: String, required: true, trim: true },
   titleAm: { type: String, trim: true },
+  keywords: { type: String, trim: true, default: '' },     // search keywords (English)
+  keywordsAm: { type: String, trim: true, default: '' },   // search keywords (Amharic)
+  subtitle: { type: String, trim: true, default: '' },     // one-sentence description shown under the lesson title and in news previews
+  subtitleAm: { type: String, trim: true, default: '' },
   kind: { type: String, enum: ['video', 'pdf', 'blocks'], required: true },
   cloudPublicId: { type: String, required: needsFile },
   cloudResourceType: { type: String, enum: ['video', 'image'], required: needsFile }, // PDFs are "image" in Cloudinary
@@ -106,6 +114,46 @@ export const Lesson = model('Lesson', new Schema({
   isPreview: { type: Boolean, default: false },
   sortOrder: { type: Number, default: 0 },
 }, opts()));
+
+// ---------- News feed (number 5) ----------
+// A news item can open a lesson, a course or an outside link. Lesson/course links are stored as ids and turned into
+// app paths when the item is read, so they stay correct if a course slug changes.
+export const NewsItem = model('NewsItem', new Schema({
+  title: { type: String, required: true, trim: true },
+  titleAm: { type: String, trim: true, default: '' },
+  summary: { type: String, default: '' },
+  summaryAm: { type: String, default: '' },
+  body: { type: String, default: '' },        // full text shown on the "Read more" page
+  bodyAm: { type: String, default: '' },
+  image: MediaSchema,
+  linkKind: { type: String, enum: ['none', 'lesson', 'course', 'url'], default: 'none' },
+  lesson: { type: Schema.Types.ObjectId, ref: 'Lesson' },
+  course: { type: Schema.Types.ObjectId, ref: 'Course' },
+  linkUrl: { type: String, default: '' },
+  isActive: { type: Boolean, default: true, index: true },
+}, opts()));
+
+// ---------- Self-evaluation documents (number 7) ----------
+// One document per lesson, written by the admin with the same blocks as a lesson (text / image / YouTube / heading / step / callout).
+// Students buy it ONLY with tokens (1 token = 1 ETB); there is no minimum quantity. It is read inside the app, never exported.
+export const SELFEVAL_DEFAULT_PRICE = 30;
+export const SelfEval = model('SelfEval', (() => {
+  const sc = new Schema({
+    lesson: { type: Schema.Types.ObjectId, ref: 'Lesson', required: true, unique: true },
+    priceEtb: { type: Number, default: SELFEVAL_DEFAULT_PRICE, min: 0 }, // tokens; editable per document (0 = free)
+    blocks: { type: [BlockSchema], default: [] },
+    isPublished: { type: Boolean, default: true },
+  }, opts());
+  return sc;
+})());
+
+// A student's purchase of one self-evaluation document (access record, like LessonUnlock).
+const SelfEvalPurchaseSchema = new Schema({
+  user: ref('User', true), selfEval: ref('SelfEval', true), lesson: ref('Lesson', true),
+  paidEtb: { type: Number, default: 0 },
+}, opts());
+SelfEvalPurchaseSchema.index({ user: 1, selfEval: 1 }, { unique: true });
+export const SelfEvalPurchase = model('SelfEvalPurchase', SelfEvalPurchaseSchema);
 
 // ---------- Access ----------
 const EnrollmentSchema = new Schema({ user: ref('User', true), course: ref('Course', true), payment: ref('Payment') }, opts());
@@ -132,7 +180,7 @@ export const Subscription = model('Subscription', new Schema({
 // ---------- Payments (CBE / Telebirr screenshot verification) ----------
 const PaymentSchema = new Schema({
   user: ref('User', true),
-  purpose: { type: String, enum: ['course', 'subscription', 'session', 'group', 'group_subscription'], required: true },
+  purpose: { type: String, enum: ['course', 'subscription', 'session', 'group', 'group_subscription', 'topup'], required: true },
   course: ref('Course'),
   category: ref('Category'),                                           // purpose 'group'
   groups: { type: [{ type: Schema.Types.ObjectId, ref: 'Category' }], default: [] }, // purpose 'group_subscription'
@@ -157,6 +205,14 @@ export const Booking = model('Booking', new Schema({
   preferredAt: { type: Date, required: true },
   topic: { type: String, required: true },
   notes: String,
+  // Duration / content split / price breakdown (all computed by the server, never trusted from the browser)
+  durationHours: Number,                 // 1, 1.5, 2, 2.5 or 3
+  contentType: { type: String, enum: ['theory', 'practical', 'both'] },
+  theoryPercent: Number,                 // theory% + practical% = 100
+  practicalPercent: Number,
+  rateUsed: Number,                      // per-hour rate (ETB) at the moment of the request
+  discountPercent: Number,               // duration discount applied
+  listPriceEtb: Number,                  // rate x hours, before discount
   status: { type: String, enum: ['requested', 'approved', 'rejected', 'paid', 'completed'], default: 'requested', index: true },
   priceEtb: Number,
   adminMessage: String,
@@ -306,14 +362,30 @@ const RewardTicketSchema = new Schema({
 RewardTicketSchema.index({ user: 1, campaign: 1, shares: 1 }, { unique: true });
 export const RewardTicket = model('RewardTicket', RewardTicketSchema);
 
-export const CreditTransaction = model('CreditTransaction', new Schema({
+// Token ledger. 1 token = 1 ETB. User.creditEtb is the balance; every change also writes one row here.
+const CreditTransactionSchema = new Schema({
   user: ref('User', true),
-  amountEtb: { type: Number, required: true },  // + earned, − spent
-  reason: { type: String, enum: ['referral_reward', 'unlock_course', 'unlock_group', 'admin'], required: true },
+  amountEtb: { type: Number, required: true },  // + earned / bought, − spent
+  reason: { type: String, enum: ['referral_reward', 'unlock_course', 'unlock_group', 'unlock_lesson', 'unlock_selfeval', 'topup', 'admin'], required: true },
   ticket: ref('RewardTicket'),
   course: ref('Course'),
   category: ref('Category'),
-}, opts()));
+  lesson: ref('Lesson'),
+  selfEval: ref('SelfEval'),                     // unlock_selfeval rows: the self-evaluation document bought
+  payment: ref('Payment'),                       // topup rows: the approved payment (unique → can never be credited twice)
+  balanceAfter: Number,
+}, opts());
+CreditTransactionSchema.index({ payment: 1 }, { unique: true, partialFilterExpression: { payment: { $exists: true } } });
+export const CreditTransaction = model('CreditTransaction', CreditTransactionSchema);
+
+// A single lesson unlocked with tokens (access record, like Enrollment but per lesson)
+const LessonUnlockSchema = new Schema({
+  user: ref('User', true), lesson: ref('Lesson', true), course: ref('Course', true),
+  paidEtb: { type: Number, default: 0 },
+}, opts());
+LessonUnlockSchema.index({ user: 1, lesson: 1 }, { unique: true });
+LessonUnlockSchema.index({ user: 1, course: 1 });
+export const LessonUnlock = model('LessonUnlock', LessonUnlockSchema);
 
 // ---------- Assignment submissions (PDF forwarded to the admin's Telegram) ----------
 export const Assignment = model('Assignment', new Schema({

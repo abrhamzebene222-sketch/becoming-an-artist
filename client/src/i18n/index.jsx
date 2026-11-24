@@ -3,8 +3,26 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import en from './en.js';
 import am from './am.js';
+import { en as tutoringEn, am as tutoringAm } from './tutoring.js';
+import { en as blocksEn, am as blocksAm } from './blocksExtra.js';
+import { en as tokensEn, am as tokensAm } from './tokensExtra.js';
+import { en as stepsEn, am as stepsAm } from './stepsExtra.js';
+import { en as selfEvalEn, am as selfEvalAm } from './selfEvalExtra.js';
+import { en as newsEn, am as newsAm } from './newsExtra.js';
 
-const DICTS = { en, am };
+// Merge extra string files on top of the main dictionaries (nested objects are merged, not replaced).
+function merge(base, extra) {
+  const out = { ...base };
+  for (const k of Object.keys(extra)) {
+    out[k] = out[k] && typeof out[k] === 'object' && typeof extra[k] === 'object' ? merge(out[k], extra[k]) : extra[k];
+  }
+  return out;
+}
+
+const DICTS = {
+  en: [tutoringEn, blocksEn, tokensEn, stepsEn, selfEvalEn, newsEn].reduce(merge, en),
+  am: [tutoringAm, blocksAm, tokensAm, stepsAm, selfEvalAm, newsAm].reduce(merge, am),
+};
 const KEY = 'baa_lang';
 
 function readStored() {

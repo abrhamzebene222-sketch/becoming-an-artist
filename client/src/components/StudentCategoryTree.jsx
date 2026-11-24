@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useI18n } from '../i18n/index.jsx';
 import Icon from './Icon.jsx';
 
@@ -7,7 +7,7 @@ import Icon from './Icon.jsx';
  * Supports infinitely nested groups (major groups, sub-groups, sub-sub-groups...) with expandable dropdown arrows 
  * so students can explore the hierarchy smoothly.
  */
-export default function StudentCategoryTree({ roots, selectedId, onSelectGroup, onSelectCourse }) {
+export default function StudentCategoryTree({ roots, selectedId, onSelectGroup, onSelectCourse, forceOpen = false }) {
   return (
     <ul role="tree" className="flex flex-col text-sm gap-1">
       {roots.map((node) => (
@@ -18,16 +18,18 @@ export default function StudentCategoryTree({ roots, selectedId, onSelectGroup, 
           selectedId={selectedId} 
           onSelectGroup={onSelectGroup} 
           onSelectCourse={onSelectCourse} 
+          forceOpen={forceOpen}
         />
       ))}
     </ul>
   );
 }
 
-function TreeNode({ node, depth, selectedId, onSelectGroup, onSelectCourse }) {
+function TreeNode({ node, depth, selectedId, onSelectGroup, onSelectCourse, forceOpen }) {
   const { t, loc } = useI18n();
   // By default, expand major groups or keep them collapsible
-  const [isOpen, setIsOpen] = useState(depth === 0);
+  const [isOpen, setIsOpen] = useState(depth === 0 || !!forceOpen);
+  useEffect(() => { if (forceOpen) setIsOpen(true); }, [forceOpen]); // searching → show what matched
   
   const hasSubGroups = node.children && node.children.length > 0;
   const hasCourses = (node.ownCourses && node.ownCourses.length > 0) || (node.courses && node.courses.length > 0);
@@ -85,6 +87,7 @@ function TreeNode({ node, depth, selectedId, onSelectGroup, onSelectCourse }) {
               selectedId={selectedId} 
               onSelectGroup={onSelectGroup} 
               onSelectCourse={onSelectCourse} 
+              forceOpen={forceOpen}
             />
           ))}
 
@@ -115,6 +118,3 @@ function TreeNode({ node, depth, selectedId, onSelectGroup, onSelectCourse }) {
     </li>
   );
 }
-```[cite: 12]
-
-ይህንን ፋይል ካስተካከልክ በኋላ አሁን በተማሪውም ሆነ በአድሚን በኩል በግሩፕ ስር ንዑስ ግሩፕ፣ በዚያም ስር ሌላ ንዑስ ግሩፕ ያለ ገደብ (Infinitely nested) ማየት እና ማስተዳደር ትችላለህ። እስቲ ሞክረው!

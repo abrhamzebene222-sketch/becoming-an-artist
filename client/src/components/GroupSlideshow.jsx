@@ -13,7 +13,7 @@ export default function GroupSlideshow({ group, index, children, expanded, onTog
 
   return (
     <div className="relative rounded-3xl border border-line bg-ink-deep p-2.5 sm:p-3.5 shadow-[0_0_0_1px_rgba(31,166,155,0.08)]">
-      <div className="relative h-60 sm:h-72 lg:h-80 rounded-2xl overflow-hidden ring-1 ring-line-strong bg-ink-panel" {...pause}>
+      <div className="ba-frame relative h-60 sm:h-72 lg:h-80 rounded-2xl overflow-hidden ring-1 ring-line-strong bg-ink-panel" {...pause}>
         {slides.length === 0 && (
           <div aria-hidden="true" className="absolute inset-0"
             style={{ background: 'radial-gradient(circle at 80% 20%, rgba(31,166,155,0.35), transparent 55%), radial-gradient(circle at 20% 90%, rgba(127,227,217,0.18), transparent 50%)' }} />
@@ -25,7 +25,9 @@ export default function GroupSlideshow({ group, index, children, expanded, onTog
             <img src={cdn(s.url, 480)} alt="" aria-hidden="true" loading="lazy"
               className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-35" />
             <img src={cdn(s.url, 1600)} alt="" loading={i === 0 ? 'eager' : 'lazy'}
-              className="relative w-full h-full object-contain p-3 sm:p-5 drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)]" />
+              className={`ba-frame-image relative w-full h-full object-cover p-3 sm:p-5 drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)] ${i === current ? '' : 'ba-frame-image-idle'}`}
+              style={{ '--ba-pan-duration': `${INTERVAL}ms` }}
+              onLoad={(e) => { const img = e.currentTarget; img.dataset.imageShape = img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait'; }} />
           </div>
         ))}
 

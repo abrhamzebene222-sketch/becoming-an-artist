@@ -27,7 +27,7 @@ export default function PromoBoard({ board, items, telegram, onShare }) {
 
   return (
     <aside aria-label={t(`boards.${meta.key}`)} className="relative rounded-2xl overflow-hidden border border-cyan-300/25 bg-[#0E1A20]" {...pause}>
-      <div className="relative h-52 sm:h-48">
+      <div className="ba-frame relative h-52 sm:h-48">
         {units.map((p, i) => {
           const linkUrl = p.linkUrl || (board === 2 ? telegram?.channelUrl : '');
           return (
@@ -40,7 +40,7 @@ export default function PromoBoard({ board, items, telegram, onShare }) {
                 pointerEvents: i === current ? 'auto' : 'none',
               }}>
               {p.image?.url && (
-                <img src={cdn(p.image.url, 1400)} alt="" loading="lazy" className="absolute inset-y-0 left-0 w-full sm:w-3/5 h-full object-cover" />
+                    <img src={cdn(p.image.url, 1400)} alt="" loading="lazy" className={`ba-frame-image absolute inset-y-0 left-0 w-full sm:w-3/5 h-full object-cover ${i === current ? '' : 'ba-frame-image-idle'}`} style={{ '--ba-pan-duration': `${INTERVAL}ms` }} onLoad={(e) => { const img = e.currentTarget; img.dataset.imageShape = img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait'; }} />
               )}
               {/* Phones: the image fills the board, so add a soft cold wash under the text for readability */}
               <div aria-hidden="true" className="absolute inset-0 sm:hidden bg-gradient-to-t from-[#0E1A20]/90 via-[#0E1A20]/55 to-[#0E1A20]/10" />
@@ -93,3 +93,4 @@ export default function PromoBoard({ board, items, telegram, onShare }) {
     </aside>
   );
 }
+

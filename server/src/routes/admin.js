@@ -2,8 +2,8 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import {
-  User, Category, Course, Lesson, Enrollment, GroupEnrollment, Subscription, Payment, Booking, CourseRequest,
-  TeacherApplication, Notification, ContactInfo, SubmissionLink, RewardTicket, Assignment,
+  User, Category, Course, Lesson, Enrollment, GroupEnrollment, Subscription, Payment, Booking, CourseRequest, CreditTransaction,
+  TeacherApplication, Notification, ContactInfo, SubmissionLink, RewardTicket, Assignment, SelfEval, SelfEvalPurchase, SELFEVAL_DEFAULT_PRICE,
 } from '../models/index.js';
 import { requireAdmin } from '../auth.js';
 import { notifyUser, notifyAllStudents } from '../notify.js';
@@ -16,8 +16,11 @@ import {
 } from '../cloudinary.js';
 import { imageUpload } from '../upload.js';
 import { invalidateTree, descendantIds, wouldCycle } from '../tree.js';
+import { invalidateSearch } from '../search.js';
 
 const router = Router();
+// Any admin change (course, lesson, keywords, group...) refreshes the search index right away
+router.use((req, res, next) => { if (req.method !== 'GET') res.on('finish', invalidateSearch); next(); });
 router.use(requireAdmin);
 const validId = (id) => mongoose.isValidObjectId(id);
 
@@ -90,10 +93,24 @@ router.post('/payments/:id/review', ah(async (req, res) => {
       });
     } else if (p.purpose === 'session') {
       await Booking.updateOne({ _id: p.booking }, { status: 'paid' });
+    } else if (p.purpose === 'topup') {
+      // Credit tokens exactly once: the ledger row has a unique index on the payment, so a repeat can never add twice.
+      let row;
+      try {
+        row = await CreditTransaction.create({ user: p.user, amountEtb: p.amountEtb, reason: 'topup', payment: p._id });
+        const u = await User.findByIdAndUpdate(p.user, { $inc: { creditEtb: p.amountEtb } }, { new: true });
+        if (!u) throw new Error('user missing');
+        await CreditTransaction.updateOne({ _id: row._id }, { balanceAfter: u.creditEtb });
+      } catch (e) {
+        // Undo, so the admin can simply press Approve again
+        if (row) await CreditTransaction.deleteOne({ _id: row._id }).catch(() => {});
+        await Payment.updateOne({ _id: p._id }, { status: 'pending', reviewedAt: null, adminNote: null });
+        throw e;
+      }
     }
     await notifyUser(p.user, {
-      type: 'payment_approved', params: { purpose: p.purpose },
-      title: 'Payment approved', body: 'Your access is unlocked.', link: p.purpose === 'session' ? '/sessions' : '/enrolled',
+      type: 'payment_approved', params: { purpose: p.purpose, amount: p.purpose === 'topup' ? p.amountEtb : undefined },
+      title: 'Payment approved', body: 'Your access is unlocked.', link: p.purpose === 'session' ? '/sessions' : p.purpose === 'topup' ? '/rewards' : '/enrolled',
     });
   } else {
     await notifyUser(p.user, {
@@ -118,7 +135,11 @@ router.post('/bookings/:id/review', ah(async (req, res) => {
   if (!b) return fail(req, res, 404, 'notFound');
   if (decision === 'approved') {
     const p = await pricing();
-    const price = Number(priceEtb ?? (b.mode === 'online' ? p.sessionPriceOnline : p.sessionPriceInPerson)) || 0;
+    // Default = the price the student saw when requesting (stored on the booking). Old bookings without
+    // a duration fall back to the current 1-hour rate. The admin may still type a different price.
+    const fallback = b.priceEtb ?? (b.mode === 'online' ? p.sessionPriceOnline : p.sessionPriceInPerson);
+    const typed = priceEtb === '' || priceEtb == null ? NaN : Number(priceEtb);
+    const price = Math.max(0, Math.round(Number.isFinite(typed) ? typed : Number(fallback) || 0));
     Object.assign(b, { status: 'approved', priceEtb: price, adminMessage: message || undefined });
     await b.save();
     await notifyUser(b.user, { type: 'booking_approved', params: { price }, title: '1-on-1 session approved', body: `${price} ETB`, link: '/sessions' });
@@ -266,6 +287,8 @@ const courseFields = (b) => ({
   summaryAm: b.summaryAm || '',
   learningOutcomes: b.learningOutcomes || '',
   deliverables: b.deliverables || '',
+  keywords: String(b.keywords || '').slice(0, 500),
+  keywordsAm: String(b.keywordsAm || '').slice(0, 500),
   evaluationCriteria: (b.evaluationCriteria || []).filter((k) => k.criterion).map((k) => ({ criterion: k.criterion, weight: Number(k.weight) || 0 })),
   isFree: !!b.isFree,
   priceEtb: b.isFree ? 0 : Math.max(0, Number(b.priceEtb) || 0),
@@ -327,6 +350,23 @@ function cleanBlocks(list) {
       const image = cleanMedia(b.image);
       return image ? { type: 'image', image, caption: String(b.caption || '').slice(0, 500) } : null;
     }
+    if (b.type === 'heading') {
+      const text = String(b.text || '').slice(0, 300);
+      const textAm = String(b.textAm || '').slice(0, 300);
+      return text.trim() || textAm.trim() ? { type: 'heading', text, textAm } : null;
+    }
+    if (b.type === 'step') {
+      const text = String(b.text || '').slice(0, 20000);
+      const textAm = String(b.textAm || '').slice(0, 20000);
+      const image = cleanMedia(b.image); // optional
+      if (!text.trim() && !textAm.trim() && !image) return null;
+      return { type: 'step', text, textAm, ...(image ? { image, caption: String(b.caption || '').slice(0, 500) } : {}) };
+    }
+    if (b.type === 'callout') {
+      const text = String(b.text || '').slice(0, 5000);
+      const textAm = String(b.textAm || '').slice(0, 5000);
+      return text.trim() || textAm.trim() ? { type: 'callout', variant: b.variant === 'warning' ? 'warning' : 'tip', text, textAm } : null;
+    }
     if (b.type === 'youtube') {
       const id = youtubeId(b.youtubeUrl);
       return id ? { type: 'youtube', youtubeUrl: `https://www.youtube.com/watch?v=${id}`, caption: String(b.caption || '').slice(0, 500) } : null;
@@ -334,13 +374,14 @@ function cleanBlocks(list) {
     return null;
   }).filter(Boolean).slice(0, 200);
 }
-const blockImages = (blocks) => blocks.filter((b) => b.type === 'image' && b.image?.publicId).map((b) => (b.image.toObject ? b.image.toObject() : b.image));
+// image blocks and step pictures
+const blockImages = (blocks) => blocks.filter((b) => b.image?.publicId).map((b) => (b.image.toObject ? b.image.toObject() : b.image));
 
 router.post('/lessons', ah(async (req, res) => {
   const { course, title, publicId, kind, isPreview, account } = req.body || {};
   if (!validId(course) || !title?.trim() || !['video', 'pdf', 'blocks'].includes(kind)) return fail(req, res, 400, 'lessonFields');
   const last = await Lesson.findOne({ course }).sort({ sortOrder: -1 });
-  const base = { course, title: title.trim(), kind, isPreview: !!isPreview, sortOrder: (last?.sortOrder ?? 0) + 1 };
+  const base = { course, title: title.trim(), keywords: String(req.body.keywords || '').slice(0, 500), keywordsAm: String(req.body.keywordsAm || '').slice(0, 500), subtitle: String(req.body.subtitle || '').slice(0, 300), subtitleAm: String(req.body.subtitleAm || '').slice(0, 300), kind, isPreview: !!isPreview, sortOrder: (last?.sortOrder ?? 0) + 1 };
 
   if (kind === 'blocks') {
     const blocks = cleanBlocks(req.body.blocks);
@@ -368,6 +409,10 @@ router.put('/lessons/:id', ah(async (req, res) => {
   if (!lesson) return fail(req, res, 404, 'lessonNotFound');
   const { title, isPreview, sortOrder, blocks } = req.body || {};
   if (title?.trim()) lesson.title = title.trim();
+  if (req.body.keywords !== undefined) lesson.keywords = String(req.body.keywords || '').slice(0, 500);
+  if (req.body.keywordsAm !== undefined) lesson.keywordsAm = String(req.body.keywordsAm || '').slice(0, 500);
+  if (req.body.subtitle !== undefined) lesson.subtitle = String(req.body.subtitle || '').slice(0, 300);
+  if (req.body.subtitleAm !== undefined) lesson.subtitleAm = String(req.body.subtitleAm || '').slice(0, 300);
   if (isPreview !== undefined) lesson.isPreview = !!isPreview;
   if (sortOrder != null) lesson.sortOrder = Number(sortOrder) || 0;
   let before = [];
@@ -379,6 +424,81 @@ router.put('/lessons/:id', ah(async (req, res) => {
   }
   await lesson.save();
   if (Array.isArray(blocks)) await syncMedia(before, blockImages(lesson.blocks)); // replaced/removed images → deleted
+  res.json({ ok: true });
+}));
+
+// ---------- Self-evaluation documents (one per lesson; students buy them with tokens) ----------
+const serializeEval = (e) => ({
+  id: String(e._id), lessonId: String(e.lesson), priceEtb: e.priceEtb, isPublished: !!e.isPublished,
+  blocks: (e.blocks || []).map((b) => ({
+    _id: String(b._id), type: b.type, text: b.text || '', textAm: b.textAm || '', caption: b.caption || '',
+    image: b.image?.url ? { url: b.image.url, publicId: b.image.publicId, account: b.image.account || 'env', resourceType: 'image' } : null,
+    youtubeUrl: b.youtubeUrl || '', variant: b.variant || undefined,
+  })),
+});
+
+// All prepared documents (for the list in the admin page)
+router.get('/self-evals', ah(async (_req, res) => {
+  const evals = await SelfEval.find().sort({ updatedAt: -1 }).limit(500).lean();
+  const lessons = await Lesson.find({ _id: { $in: evals.map((e) => e.lesson) } }, 'title titleAm course').lean();
+  const courses = await Course.find({ _id: { $in: lessons.map((l) => l.course) } }, 'title titleAm').lean();
+  const buyers = await SelfEvalPurchase.aggregate([{ $group: { _id: '$selfEval', n: { $sum: 1 } } }]);
+  const lessonBy = new Map(lessons.map((l) => [String(l._id), l]));
+  const courseBy = new Map(courses.map((c) => [String(c._id), c]));
+  const buyerBy = new Map(buyers.map((b) => [String(b._id), b.n]));
+  res.json(evals.map((e) => {
+    const l = lessonBy.get(String(e.lesson)); const c = l && courseBy.get(String(l.course));
+    return {
+      id: String(e._id), lessonId: String(e.lesson), title: l?.title || '', titleAm: l?.titleAm || '',
+      courseTitle: c?.title || '', courseTitleAm: c?.titleAm || '',
+      priceEtb: e.priceEtb, isPublished: !!e.isPublished, blockCount: (e.blocks || []).length, buyers: buyerBy.get(String(e._id)) || 0,
+    };
+  }));
+}));
+
+// One lesson's document (or an empty draft with the default price when none exists yet)
+router.get('/lessons/:lessonId/self-eval', ah(async (req, res) => {
+  if (!validId(req.params.lessonId)) return fail(req, res, 404, 'lessonNotFound');
+  const lesson = await Lesson.findById(req.params.lessonId, 'title titleAm course').lean();
+  if (!lesson) return fail(req, res, 404, 'lessonNotFound');
+  const course = await Course.findById(lesson.course, 'title titleAm').lean();
+  const e = await SelfEval.findOne({ lesson: lesson._id });
+  res.json({
+    lesson: { id: String(lesson._id), title: lesson.title, titleAm: lesson.titleAm || '', courseTitle: course?.title || '', courseTitleAm: course?.titleAm || '' },
+    defaultPriceEtb: SELFEVAL_DEFAULT_PRICE,
+    selfEval: e ? serializeEval(e) : null,
+    buyers: e ? await SelfEvalPurchase.countDocuments({ selfEval: e._id }) : 0,
+  });
+}));
+
+router.put('/lessons/:lessonId/self-eval', ah(async (req, res) => {
+  if (!validId(req.params.lessonId)) return fail(req, res, 404, 'lessonNotFound');
+  const lesson = await Lesson.findById(req.params.lessonId, '_id').lean();
+  if (!lesson) return fail(req, res, 404, 'lessonNotFound');
+  const price = Number(req.body?.priceEtb);
+  if (!Number.isInteger(price) || price < 0 || price > 100000) return fail(req, res, 400, 'selfEvalPrice');
+  const blocks = cleanBlocks(req.body?.blocks);
+  if (!blocks.length) return fail(req, res, 400, 'lessonBlocks');
+  let e = await SelfEval.findOne({ lesson: lesson._id });
+  const before = e ? blockImages(e.blocks) : [];
+  if (!e) e = new SelfEval({ lesson: lesson._id });
+  e.priceEtb = price;
+  e.isPublished = req.body?.isPublished !== false;
+  e.blocks = blocks;
+  await e.save();
+  await syncMedia(before, blockImages(e.blocks)); // replaced/removed images are deleted from Cloudinary
+  res.json({ ok: true, id: String(e._id) });
+}));
+
+// Delete is blocked once a student has bought it (their tokens are spent): hide it instead.
+router.delete('/lessons/:lessonId/self-eval', ah(async (req, res) => {
+  if (!validId(req.params.lessonId)) return fail(req, res, 404, 'lessonNotFound');
+  const e = await SelfEval.findOne({ lesson: req.params.lessonId });
+  if (!e) return fail(req, res, 404, 'selfEvalNotFound');
+  if (await SelfEvalPurchase.exists({ selfEval: e._id })) return fail(req, res, 400, 'selfEvalHasBuyers');
+  const imgs = blockImages(e.blocks);
+  await SelfEval.deleteOne({ _id: e._id });
+  await syncMedia(imgs, []);
   res.json({ ok: true });
 }));
 

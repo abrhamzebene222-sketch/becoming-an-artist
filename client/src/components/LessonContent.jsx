@@ -26,6 +26,7 @@ export default function LessonContent({ lessonId }) {
   if (err) return <p className="text-sm text-muted p-4">{err}</p>;
   if (!data) return <p className="text-sm text-muted p-4">{t('detail.loadingLesson')}</p>;
 
+  let stepNumber = 0;
   return (
     <div className="flex flex-col gap-4 p-4 pt-1">
       {offline && <p className="text-xs text-[#F2D98A] flex items-center gap-2"><Icon name="wifiOff" size={14} />{t('detail.offline')}</p>}
@@ -39,7 +40,40 @@ export default function LessonContent({ lessonId }) {
           <a href={data.url} target="_blank" rel="noreferrer" className="text-sm self-start">{t('course.pdf')} ↗</a>
         </>
       )}
-      {data.blocks.map((b) => {
+      {data.blocks.map((b, bi) => {
+        const pick = (field) => (lang === 'am' && b[`${field}Am`]) || b[field] || b[`${field}Am`] || '';
+        const amLang = lang === 'am' && b.textAm ? 'am' : undefined;
+        if (b.type === 'heading') {
+          stepNumber = 0; // numbering restarts after each section heading
+          return <h3 key={b.id} className="text-lg font-semibold text-white mt-3 first:mt-0" lang={amLang}>{pick('text')}</h3>;
+        }
+        if (b.type === 'step') {
+          stepNumber += 1;
+          return (
+            <section key={b.id} className="flex gap-3" aria-label={t('lessonBlocks.step', { n: stepNumber })}>
+              <span aria-hidden="true" className="shrink-0 w-8 h-8 rounded-full bg-teal-active text-mint grid place-items-center text-sm font-semibold mt-0.5">{stepNumber}</span>
+              <div className="min-w-0 flex-1 flex flex-col gap-2.5">
+                {pick('text') && <div className="text-[15px] leading-relaxed text-[#DCEBE8] whitespace-pre-line" lang={amLang}>{pick('text')}</div>}
+                {b.imageUrl && (
+                  <figure className="flex flex-col gap-1.5">
+                    <img src={cdn(b.imageUrl, 1600)} alt={b.caption || t('lessonBlocks.step', { n: stepNumber })} loading="lazy" className="w-full rounded-xl border border-line object-contain bg-ink-deep" />
+                    {b.caption && <figcaption className="text-xs text-muted text-center">{b.caption}</figcaption>}
+                  </figure>
+                )}
+              </div>
+            </section>
+          );
+        }
+        if (b.type === 'callout') {
+          const warn = b.variant === 'warning';
+          return (
+            <aside key={b.id} role="note" lang={amLang}
+              className={`rounded-xl border p-3.5 text-[15px] leading-relaxed whitespace-pre-line ${warn ? 'border-[#6B5A1E] bg-[#3A3420] text-[#F2D98A]' : 'border-teal/50 bg-teal-active/30 text-mint'}`}>
+              <strong className="block text-xs uppercase tracking-wide mb-1">{warn ? t('lessonBlocks.warning') : t('lessonBlocks.tip')}</strong>
+              {pick('text')}
+            </aside>
+          );
+        }
         if (b.type === 'text') {
           const text = (lang === 'am' && b.textAm) || b.text || b.textAm;
           return <div key={b.id} className="text-[15px] leading-relaxed text-[#DCEBE8] whitespace-pre-line" lang={lang === 'am' && b.textAm ? 'am' : undefined}>{text}</div>;

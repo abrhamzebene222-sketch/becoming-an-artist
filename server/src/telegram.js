@@ -58,14 +58,14 @@ const send = (chatId, text, extra = {}) =>
   tg('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true, ...extra });
 
 /** Send a generated file (e.g. assignment PDF) to the admin chat. */
-export async function sendAdminDocument(buffer, filename, caption) {
+export async function sendAdminDocument(buffer, filename, caption, mimeType = 'application/pdf') {
   const cfg = await botConfig();
   if (!cfg.token || !cfg.adminChatId) return { ok: false, status: 'not_configured' };
   const fd = new FormData();
   fd.append('chat_id', String(cfg.adminChatId));
   fd.append('caption', String(caption || '').slice(0, 1024));
   fd.append('parse_mode', 'HTML');
-  fd.append('document', new Blob([buffer], { type: 'application/pdf' }), filename);
+  fd.append('document', new Blob([buffer], { type: mimeType }), filename);
   const res = await fetch(`${API}/bot${cfg.token}/sendDocument`, { method: 'POST', body: fd });
   const data = await res.json().catch(() => ({ ok: false, description: `HTTP ${res.status}` }));
   return data.ok ? { ok: true, status: 'sent' } : { ok: false, status: 'failed', error: data.description };

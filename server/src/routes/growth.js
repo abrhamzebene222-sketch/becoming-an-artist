@@ -3,11 +3,13 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import {
-  User, Course, Category, Enrollment, GroupEnrollment, ReferralCampaign, ReferralShare, RewardTicket, CreditTransaction,
+  User, Course, Category, Lesson, LessonUnlock, Enrollment, GroupEnrollment, ReferralCampaign, ReferralShare, RewardTicket, CreditTransaction,
 } from '../models/index.js';
 import { requireAuth } from '../auth.js';
 import { fail } from '../i18n.js';
-import { ah, hasCourseAccess, hasGroupAccess, groupPrice } from '../lib.js';
+import {
+  ah, hasCourseAccess, hasLessonAccess, hasGroupAccess, groupPrice, courseTokenInfo, spendTokens,
+} from '../lib.js';
 import {
   botConfig, handleUpdate, createLinkUrl, ensureReferralCode, referralBotLink, referralWebLink, isBotReady,
 } from '../telegram.js';
@@ -82,47 +84,63 @@ router.get('/me/credits', requireAuth, ah(async (req, res) => {
   res.json({
     creditEtb: u?.creditEtb || 0,
     transactions: await CreditTransaction.find({ user: req.user.id }).sort({ createdAt: -1 }).limit(50)
-      .populate('course', 'title titleAm slug').populate('category', 'title titleAm'),
+      .populate('course', 'title titleAm slug').populate('category', 'title titleAm').populate('lesson', 'title titleAm'),
   });
 }));
 
-/** Spend reward credit to unlock a premium course or a whole group: body { type: 'course'|'group', id } */
+/**
+ * Spend tokens (1 token = 1 ETB) to unlock a lesson, a course or a whole group: body { type: 'lesson'|'course'|'group', id }.
+ * The server decides the price; the browser never sends one. See spendTokens() in lib.js for the safety rules.
+ */
 router.post('/credits/redeem', requireAuth, ah(async (req, res) => {
   const { type, id } = req.body || {};
-  if (!['course', 'group'].includes(type) || !mongoose.isValidObjectId(id)) return fail(req, res, 400, 'notFound');
+  if (!['lesson', 'course', 'group'].includes(type) || !mongoose.isValidObjectId(id)) return fail(req, res, 400, 'notFound');
   let price = 0;
-  if (type === 'course') {
-    const course = await Course.findOne({ _id: id, isPublished: true }).lean();
-    if (!course) return fail(req, res, 404, 'courseNotFound');
-    if (course.isFree) return fail(req, res, 400, 'freeCourse');
-    if (await hasCourseAccess(req.user, course)) return fail(req, res, 400, 'alreadyUnlocked');
-    price = course.priceEtb || 0;
-  } else {
+  let entry;
+  let grant;
+  const uid = req.user.id;
+
+  if (type === 'group') {
     const cat = await Category.findById(id).lean();
     if (!cat) return fail(req, res, 404, 'groupNotFound');
     if (await hasGroupAccess(req.user, id)) return fail(req, res, 400, 'alreadyUnlocked');
     price = groupPrice(cat);
     if (!price) return fail(req, res, 400, 'noGroupPrice');
-  }
-  if (!price) return fail(req, res, 400, 'nothingToPay');
-  // Atomic: only deducts when the balance is enough
-  const u = await User.findOneAndUpdate({ _id: req.user.id, creditEtb: { $gte: price } }, { $inc: { creditEtb: -price } }, { new: true });
-  if (!u) return fail(req, res, 400, 'notEnoughCredit');
-  try {
-    if (type === 'course') {
-      await Enrollment.updateOne({ user: u._id, course: id }, { $setOnInsert: { user: u._id, course: id } }, { upsert: true });
+    entry = { reason: 'unlock_group', category: id };
+    grant = async () => (await GroupEnrollment.updateOne({ user: uid, category: id },
+      { $setOnInsert: { user: uid, category: id, source: 'credit' } }, { upsert: true })).upsertedCount === 1;
+  } else {
+    let course; let lesson = null;
+    if (type === 'lesson') {
+      lesson = await Lesson.findById(id).lean();
+      if (!lesson) return fail(req, res, 404, 'lessonNotFound');
+      course = await Course.findOne({ _id: lesson.course, isPublished: true }).lean();
     } else {
-      await GroupEnrollment.updateOne({ user: u._id, category: id }, { $setOnInsert: { user: u._id, category: id, source: 'credit' } }, { upsert: true });
+      course = await Course.findOne({ _id: id, isPublished: true }).lean();
     }
-    await CreditTransaction.create({
-      user: u._id, amountEtb: -price, reason: type === 'course' ? 'unlock_course' : 'unlock_group',
-      ...(type === 'course' ? { course: id } : { category: id }),
-    });
-  } catch (e) {
-    await User.updateOne({ _id: u._id }, { $inc: { creditEtb: price } }); // refund on failure
-    throw e;
+    if (!course) return fail(req, res, 404, 'courseNotFound');
+    if (course.isFree) return fail(req, res, 400, 'freeCourse');
+    if (await hasCourseAccess(req.user, course)) return fail(req, res, 400, 'alreadyUnlocked');
+    if (type === 'lesson') {
+      if (await hasLessonAccess(req.user, lesson, course)) return fail(req, res, 400, 'alreadyUnlocked');
+      const info = await courseTokenInfo(uid, course, await Lesson.countDocuments({ course: course._id }));
+      price = info.lessonPrice;
+      entry = { reason: 'unlock_lesson', lesson: id, course: course._id };
+      grant = async () => (await LessonUnlock.updateOne({ user: uid, lesson: id },
+        { $setOnInsert: { user: uid, lesson: id, course: course._id, paidEtb: price } }, { upsert: true })).upsertedCount === 1;
+    } else {
+      // Whole course: price minus the tokens already spent on its single lessons (never pay twice)
+      const info = await courseTokenInfo(uid, course, await Lesson.countDocuments({ course: course._id }));
+      price = info.courseRemaining;
+      entry = { reason: 'unlock_course', course: id };
+      grant = async () => (await Enrollment.updateOne({ user: uid, course: id },
+        { $setOnInsert: { user: uid, course: id } }, { upsert: true })).upsertedCount === 1;
+    }
   }
-  res.json({ ok: true, creditEtb: u.creditEtb });
+  if (!(price > 0)) return fail(req, res, 400, 'nothingToPay');
+  const r = await spendTokens(uid, price, entry, grant);
+  if (r.error) return fail(req, res, 400, r.error);
+  res.json({ ok: true, creditEtb: r.balance, spent: price });
 }));
 
 export default router;

@@ -8,7 +8,7 @@ import mongoose from 'mongoose';
 import { Lesson, Course } from '../models/index.js';
 import { optionalAuth } from '../auth.js';
 import { fail } from '../i18n.js';
-import { ah, hasCourseAccess, youtubeId } from '../lib.js';
+import { ah, hasLessonAccess, youtubeId } from '../lib.js';
 import { lessonUrl, posterUrl, accountFor } from '../cloudinary.js';
 
 const router = Router();
@@ -18,7 +18,8 @@ async function openLesson(req, res) {
   const lesson = await Lesson.findById(req.params.lessonId).lean();
   if (!lesson) { fail(req, res, 404, 'lessonNotFound'); return null; }
   const course = await Course.findById(lesson.course).lean();
-  const open = lesson.isPreview || (await hasCourseAccess(req.user, course));
+  // course access, free preview, or this lesson unlocked with tokens
+  const open = await hasLessonAccess(req.user, lesson, course);
   if (!open) { fail(req, res, req.user ? 403 : 401, req.user ? 'unlockToWatch' : 'loginToWatch'); return null; }
   return lesson;
 }
@@ -47,6 +48,8 @@ router.get('/lesson/:lessonId', optionalAuth, ah(async (req, res) => {
   res.json({
     id: String(lesson._id),
     title: lesson.title,
+    subtitle: lesson.subtitle || '',
+    subtitleAm: lesson.subtitleAm || '',
     kind: lesson.kind,
     isPreview: !!lesson.isPreview,
     url: f.url || null,
@@ -58,6 +61,7 @@ router.get('/lesson/:lessonId', optionalAuth, ah(async (req, res) => {
       textAm: b.textAm || '',
       caption: b.caption || '',
       imageUrl: b.image?.url || '',
+      variant: b.variant || '',
       youtubeId: b.type === 'youtube' ? youtubeId(b.youtubeUrl) : '',
     })),
   });

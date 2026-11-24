@@ -4,7 +4,7 @@ import { useI18n } from '../i18n/index.jsx';
 
 /**
  * CBE / Telebirr manual payment: pick method → see amount & account → upload screenshot + reference ID.
- * purpose: 'course' | 'subscription' | 'session' | 'group' (categoryId) | 'group_subscription' (groups = [ids])
+ * purpose: 'course' | 'subscription' | 'session' | 'group' (categoryId) | 'group_subscription' (groups = [ids]) | 'topup' (amount = tokens)
  */
 export default function PaymentForm({ purpose, amount, courseId, bookingId, categoryId, groups, onDone }) {
   const { t } = useI18n();
@@ -29,6 +29,7 @@ export default function PaymentForm({ purpose, amount, courseId, bookingId, cate
     if (courseId) form.append('courseId', courseId);
     if (bookingId) form.append('bookingId', bookingId);
     if (categoryId) form.append('categoryId', categoryId);
+    if (purpose === 'topup') form.append('amountEtb', String(amount)); // token purchase: the server checks the range
     if (groups) form.append('groups', JSON.stringify(groups));
     form.append('screenshot', file);
     try {

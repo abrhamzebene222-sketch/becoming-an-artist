@@ -3,7 +3,6 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { api, useApi, useAuth, etb } from '../../api.js';
 import { useI18n } from '../../i18n/index.jsx';
 import PaymentForm from '../../components/PaymentForm.jsx';
-import LessonContent from '../../components/LessonContent.jsx';
 import Icon from '../../components/Icon.jsx';
 
 const mins = (s) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '');
@@ -19,7 +18,6 @@ export default function CourseDetail() {
   const pricing = useApi('/pricing');
   const summary = useApi(user ? '/me/summary' : null, [user?.id]);
   const [plan, setPlan] = useState('course');
-  const [openIds, setOpenIds] = useState(() => new Set());
   const [creditMsg, setCreditMsg] = useState(null);
   const c = course.data;
   const access = !!c?.hasAccess;
@@ -29,7 +27,6 @@ export default function CourseDetail() {
   if (!c) return <p className="text-muted">{t('common.loading')}</p>;
 
   const canOpen = (l) => access || l.isPreview;
-  const toggle = (id) => setOpenIds((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   // Purchase options: this course, each group above it that has a price, monthly plans
   const offers = [
@@ -72,7 +69,7 @@ export default function CourseDetail() {
             <p className="text-muted-soft leading-relaxed">{loc(c, 'summary')}</p>
           </div>
 
-          {/* Lessons accordion — opens in-app (video / PDF / text / images / YouTube) */}
+          {/* Lessons list — each lesson opens on its own page (video / PDF / text / images / YouTube) */}
           <div className="card overflow-hidden">
             <div className="p-5 pb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">{t('course.lessonsTitle')}</h2>
@@ -88,21 +85,25 @@ export default function CourseDetail() {
             <ul>
               {c.lessons.map((l, i) => {
                 const open = canOpen(l);
-                const expanded = open && openIds.has(l.id);
                 const icon = l.kind === 'pdf' ? 'file' : l.kind === 'video' ? 'play' : l.blockTypes?.includes('youtube') ? 'youtube' : 'text';
+                const inner = (
+                  <>
+                    <Icon name={icon} size={16} className={open ? 'text-teal-soft shrink-0' : 'text-muted-dim shrink-0'} />
+                    <span className="flex-1 min-w-0 truncate">{i + 1} · {l.title}</span>
+                    {l.durationSec ? <span className="text-xs text-muted-dim hidden sm:inline">{mins(l.durationSec)}</span> : null}
+                    {!access && l.isPreview && <span className="rounded-full bg-teal text-[#0B1312] px-2 py-0.5 text-[11px] font-bold shrink-0">{t('detail.previewTag')}</span>}
+                    {!open && <span className="text-xs text-[#F2D98A] shrink-0">{t('detail.locked')}</span>}
+                    {open && <span aria-hidden="true" className="shrink-0 text-muted text-xl leading-none">›</span>}
+                  </>
+                );
                 return (
                   <li key={l.id} className="border-t border-line">
-                    <button type="button" disabled={!open} onClick={() => toggle(l.id)} aria-expanded={open ? expanded : undefined}
-                      aria-controls={`lesson-${l.id}`}
-                      className={`w-full flex items-center gap-3 px-5 py-3.5 text-left text-sm min-h-12 ${expanded ? 'bg-ink text-mint font-semibold' : 'hover:bg-ink/60'} disabled:cursor-not-allowed disabled:hover:bg-transparent`}>
-                      <Icon name={icon} size={16} className={open ? 'text-teal-soft shrink-0' : 'text-muted-dim shrink-0'} />
-                      <span className="flex-1 min-w-0 truncate">{i + 1} · {loc(l, 'title')}</span>
-                      {l.durationSec ? <span className="text-xs text-muted-dim hidden sm:inline">{mins(l.durationSec)}</span> : null}
-                      {!access && l.isPreview && <span className="rounded-full bg-teal text-[#0B1312] px-2 py-0.5 text-[11px] font-bold shrink-0">{t('detail.previewTag')}</span>}
-                      {!open && <span className="text-xs text-[#F2D98A] shrink-0">{t('detail.locked')}</span>}
-                      {open && <Icon name={expanded ? 'chevronUp' : 'chevronDown'} size={18} className="shrink-0 text-muted" />}
-                    </button>
-                    {expanded && <div id={`lesson-${l.id}`} className="bg-ink/40 border-t border-line"><LessonContent lessonId={l.id} /></div>}
+                    {open ? (
+                      <Link to={`/courses/${slug}/lessons/${l.id}`}
+                        className="w-full flex items-center gap-3 px-5 py-3.5 text-left text-sm min-h-12 hover:bg-ink/60">{inner}</Link>
+                    ) : (
+                      <div aria-disabled="true" className="w-full flex items-center gap-3 px-5 py-3.5 text-left text-sm min-h-12 cursor-not-allowed">{inner}</div>
+                    )}
                   </li>
                 );
               })}

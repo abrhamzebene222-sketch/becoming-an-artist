@@ -8,7 +8,7 @@
  *  • Signed video/PDF links and live notifications are never cached.
  *  The API and image caches are not tied to the app version, so saved lessons survive app updates.
  */
-const VERSION = 'v3';
+const VERSION = 'v5';
 const SHELL = `baa-shell-${VERSION}`;
 const ASSETS = `baa-assets-${VERSION}`;
 const API = 'baa-api';
@@ -17,7 +17,7 @@ const FONTS = 'baa-fonts';
 const MAX_IMAGES = 600;
 const MAX_API = 300;
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
-const CACHEABLE_API = /\/api\/(catalog|courses\/|media\/lesson\/|promos|pricing|contact|me\/summary|auth\/me|payment-accounts)/;
+const CACHEABLE_API = /\/api\/(catalog|news|courses\/|media\/lesson\/|promos|pricing|contact|me\/summary|auth\/me|payment-accounts|self-evals\/[0-9a-f]{24})/;
 const MATCH = { ignoreVary: true };
 
 self.addEventListener('install', (event) => {
@@ -53,7 +53,7 @@ async function networkFirst(request, cacheName, ms = 7000) {
     const res = await Promise.race([fetch(request), timeout(ms)]);
     if (res.ok && (cacheName !== API || (res.headers.get('content-type') || '').includes('json'))) {
       cache.put(request, res.clone()).then(() => (cacheName === API ? trim(API, MAX_API) : null)).catch(() => {});
-      if (/\/api\/media\/lesson\//.test(request.url)) res.clone().json().then(warmLessonImages).catch(() => {});
+      if (/\/api\/(media\/lesson|self-evals)\//.test(request.url)) res.clone().json().then(warmLessonImages).catch(() => {});
     }
     return res;
   } catch (e) {
@@ -68,7 +68,7 @@ const cdn = (url, width = 1600) => (url && url.includes('res.cloudinary.com') &&
   ? url.replace('/upload/', `/upload/f_auto,q_auto,c_limit,w_${width}/`) : url);
 
 async function warmLessonImages(lesson) {
-  const urls = (lesson?.blocks || []).filter((b) => b.type === 'image' && b.imageUrl).map((b) => cdn(b.imageUrl, 1600));
+  const urls = (lesson?.blocks || []).filter((b) => (b.type === 'image' || b.type === 'step') && b.imageUrl).map((b) => cdn(b.imageUrl, 1600));
   const cache = await caches.open(IMAGES);
   for (const url of urls) {
     if (await cache.match(url, MATCH)) continue;

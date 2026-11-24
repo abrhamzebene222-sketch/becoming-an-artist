@@ -5,6 +5,27 @@
 /* Amharic (Ethiopic) text needs a little more line height to read comfortably */
 html[lang='am'] body { line-height: 1.65; }
 
+/* Slow, low-amplitude reframing adapts to both the image and its actual frame. */
+.ba-frame { container-type: size; }
+@keyframes ba-pan-vertical {
+  from { transform: scale(1.08) translateY(0); }
+  to { transform: scale(1.08) translateY(-3%); }
+}
+@keyframes ba-pan-horizontal {
+  from { transform: scale(1.08) translateX(0); }
+  to { transform: scale(1.08) translateX(-3%); }
+}
+.ba-frame-image-idle { animation: none !important; }
+@container (min-aspect-ratio: 1 / 1) {
+  .ba-frame-image[data-image-shape='portrait'] { animation: ba-pan-vertical var(--ba-pan-duration, 9s) ease-in-out both; }
+}
+@container (max-aspect-ratio: 1 / 1) {
+  .ba-frame-image[data-image-shape='landscape'] { animation: ba-pan-horizontal var(--ba-pan-duration, 5.5s) ease-in-out both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ba-frame-image { animation: none !important; }
+}
+
 @layer components {
   .card { @apply bg-ink-panel border border-line rounded-2xl; }
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed; }
@@ -18,3 +39,4 @@ html[lang='am'] body { line-height: 1.65; }
   .nav-link.active { @apply bg-teal-active text-white font-semibold; }
   .chip { @apply inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border cursor-pointer select-none text-sm; }
 }
+

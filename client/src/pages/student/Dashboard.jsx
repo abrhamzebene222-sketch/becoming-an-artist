@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useApi, useAuth, fmtDate } from '../../api.js';
 import { useI18n } from '../../i18n/index.jsx';
+import NewsCard from '../../components/NewsCard.jsx';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -8,6 +9,7 @@ export default function Dashboard() {
   const summary = useApi('/me/summary');
   const catalog = useApi('/catalog');
   const contact = useApi('/contact');
+  const news = useApi('/news?limit=3');
   const s = summary.data;
 
   return (
@@ -22,6 +24,16 @@ export default function Dashboard() {
         <Stat label={t('dash.pendingPayments')} value={s?.pendingPayments ?? '…'} />
         <Stat label={t('dash.nextSession')} value={s?.nextSession ? fmtDate(s.nextSession.preferredAt) : t('dash.noSession')} small />
       </section>
+
+      {news.data?.length > 0 && (
+        <section className="flex flex-col gap-4" aria-label={t('news.latest')}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold">{t('news.latest')}</h2>
+            <Link to="/news" className="text-sm">{t('news.all')}</Link>
+          </div>
+          <div className="grid gap-4">{news.data.map((n) => <NewsCard key={n.id} item={n} />)}</div>
+        </section>
+      )}
 
       <div className="grid xl:grid-cols-[1.6fr_1fr] gap-6">
         <section className="flex flex-col gap-4 min-w-0">

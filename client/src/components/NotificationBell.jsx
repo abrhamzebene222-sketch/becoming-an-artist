@@ -20,6 +20,7 @@ export function useNotificationText() {
       case 'booking_new': body = t(`${base}.body`, { name: p.name, mode: p.mode === 'online' ? t('common.online') : t('common.inPerson') }) + (p.when ? ` · ${fmtDate(p.when)}` : ''); break;
       case 'payment_new': body = t(`${base}.body`, { ...p, method: p.method === 'TELEBIRR' ? t('pay.telebirr') : t('pay.cbe') }); break;
       case 'course_new': body = t(`${base}.body`, { title: (lang === 'am' && p.titleAm) || p.title }); break;
+      case 'lesson_new': body = t(`${base}.body`, { title: (lang === 'am' && p.titleAm) || p.title, course: (lang === 'am' && p.courseTitleAm) || p.courseTitle }); break;
       default: body = t(`${base}.body`, p);
     }
     return { title, body };

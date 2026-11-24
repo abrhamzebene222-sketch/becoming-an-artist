@@ -7,7 +7,7 @@ export default {
     dashboard: 'ዋና ገጽ', catalog: 'የኮርሶች ዝርዝር', enrolled: 'የተመዘገብኩባቸው ኮርሶች', sessions: 'የግል (1 ለ 1) ትምህርት',
     request: 'ኮርስ ይጠይቁ', teach: 'ከእኛ ጋር ያስተምሩ', signOut: 'ውጣ', signIn: 'ግባ', signUp: 'መለያ ፍጠር',
     monthlyAccess: 'ወርሃዊ ምዝገባ', monthlyAccessText: 'ሁሉንም የክፍያ ኮርሶች ይክፈቱ እና ከእያንዳንዱ ኮርስ ዋጋ ይቆጥቡ።',
-    viewSubscription: 'ምዝገባውን ይመልከቱ', menu: 'ማውጫ ክፈት', search: 'ኮርሶችን ፈልግ', searchPlaceholder: 'ለምሳሌ፦ ፐርስፔክቲቭ፣ ቀለም',
+    viewSubscription: 'ምዝገባውን ይመልከቱ', menu: 'ማውጫ ክፈት', closeMenu: 'ማውጫ ዝጋ', back: 'ተመለስ', search: 'ኮርሶችንና ትምህርቶችን ፈልግ', searchPlaceholder: 'ለምሳሌ፦ ፐርስፔክቲቭ፣ ቀለም፣ የመስመር ጥራት',
     studentNav: 'የተማሪ ማውጫ', adminNav: 'የአስተዳዳሪ ማውጫ',
     payments: 'ክፍያዎች', bookings: 'የግል ትምህርት ቀጠሮዎች', requests: 'የኮርስ ጥያቄዎች', teachers: 'የመምህራን ማመልከቻዎች',
     courses: 'ኮርሶች እና ሚዲያ', settings: 'ቅንብሮች እና ዋጋ', users: 'ተጠቃሚዎች እና ሚናዎች', studentView: 'የተማሪ እይታ',
@@ -36,8 +36,13 @@ export default {
   },
   catalog: {
     title: 'የኮርሶች ዝርዝር', subtitle: 'በስዕል፣ በቀለም፣ በቅንብር እና በአናቶሚ የተዋቀረ የአካዳሚክ የትምህርት መንገድ።', filter: 'አጣራ',
-    filterPlaceholder: 'በስም ወይም በርዕስ ይፈልጉ', noMatch: 'ከ"{q}" ጋር የሚዛመድ ኮርስ የለም።', requestIt: 'ይህን ኮርስ ይጠይቁ',
+    filterPlaceholder: 'ኮርስ፣ ትምህርት ወይም ቁልፍ ቃል ይፈልጉ', noMatch: 'ከ"{q}" ጋር የሚዛመድ ኮርስ የለም።', requestIt: 'ይህን ኮርስ ይጠይቁ',
     majorGroup: 'ምዕራፍ {n}', guestBanner: 'እንደ እንግዳ እየተመለከቱ ነው። ነፃ ኮርሶች ለሁሉም ክፍት ናቸው — የክፍያ ኮርሶችን ለመግዛት ይግቡ።',
+  },
+  search: {
+    results: 'የፍለጋ ውጤቶች', courses: 'ኮርሶች', lessons: 'ትምህርቶች', free: 'ነጻ', searching: 'በመፈለግ ላይ…',
+    noResults: 'ለ"{q}" ምንም አልተገኘም።', seeAll: 'ሁሉንም ውጤቶች ይመልከቱ', lessonsFor: 'ከ"{q}" ጋር የሚዛመዱ ትምህርቶች',
+    moreLessons: '+{n} ተጨማሪ ትምህርቶች — ፍለጋውን ለማጥበብ ተጨማሪ ፊደላት ይጻፉ።',
   },
   course: {
     locked: 'መመልከት ለመጀመር ይህን ኮርስ ይክፈቱ', signInToWatch: 'ይህን የክፍያ ኮርስ ለማየት ይግቡ',
@@ -149,6 +154,8 @@ export default {
       published: 'ታትሟል (ለመጀመሪያ ጊዜ ሲታተም ተማሪዎች ይነገራቸዋል)', titleEn: 'ርዕስ (በእንግሊዝኛ)', titleAm: 'ርዕስ (በአማርኛ)',
       group: 'ዋና ምድብ', free: 'ነፃ ኮርስ — ማንም ሰው ሳይገባ ሊመለከተው ይችላል', price: 'የኮርሱ ዋጋ (ብር)',
       submissionLink: 'የቤት ሥራ ማስገቢያ ሊንክ', useDefault: 'ነባሪውን ሊንክ ተጠቀም', summaryEn: 'ማጠቃለያ (በእንግሊዝኛ)', summaryAm: 'ማጠቃለያ (በአማርኛ)',
+      keywords: 'የፍለጋ ቁልፍ ቃላት (እንግሊዝኛ)', keywordsAm: 'የፍለጋ ቁልፍ ቃላት (አማርኛ)',
+      keywordsHint: 'በነጠላ ሰረዝ ይለዩ። በርዕሱ ውስጥ ባይኖሩም ተማሪዎች በእነዚህ ቃላት ኮርሱን ወይም ትምህርቱን ያገኛሉ።',
       outcomes: 'የትምህርቱ ውጤቶች', deliverables: 'የሚጠበቁ ሥራዎች', criteria: 'የምዘና መስፈርቶች', total: 'ድምር {n}%',
       criterion: 'መስፈርት', weight: 'ክብደት %', addCriterion: '+ መስፈርት ጨምር', saveCourse: 'ኮርሱን አስቀምጥ',
       deleteConfirm: '"{title}" እና ትምህርቶቹ ይሰረዙ? በCloudinary ያሉ ፋይሎች አይሰረዙም።', studentsSee: 'ተማሪዎች የሚያዩት፦ {price}', draft: 'ረቂቅ',

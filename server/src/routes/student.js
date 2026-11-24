@@ -9,7 +9,7 @@ import { requireAuth, signScoped, verify } from '../auth.js';
 import { notifyAdmins, addStream } from '../notify.js';
 import { fail } from '../i18n.js';
 import {
-  ah, pricing, activeSubscription, activeGroupSubscriptions, unlockedGroupIds, groupSubscriptionQuote, groupPrice, hasGroupAccess,
+  ah, pricing, tutoringQuote, TOPUP_MIN, TOPUP_MAX, activeSubscription, activeGroupSubscriptions, unlockedGroupIds, groupSubscriptionQuote, groupPrice, hasGroupAccess,
 } from '../lib.js';
 import { uploadReceipt, deleteReceipt, isConfigured } from '../cloudinary.js';
 import { descendantIds } from '../tree.js';
@@ -87,6 +87,12 @@ router.get('/me/summary', ah(async (req, res) => {
 
 // ---------- Payments ----------
 async function amountFor(req, purpose, courseId, bookingId, categoryId, groups) {
+  if (purpose === 'topup') {
+    // Token purchase: 1 ETB = 1 token. The student chooses the amount; the admin approves the receipt.
+    const n = Number(req.body?.amountEtb);
+    if (!Number.isInteger(n) || n < TOPUP_MIN || n > TOPUP_MAX) return { error: 'topupAmount' };
+    return { amount: n };
+  }
   if (purpose === 'subscription') return { amount: (await pricing()).monthlyPrice };
   if (purpose === 'group') {
     if (!mongoose.isValidObjectId(categoryId)) return {};
@@ -119,7 +125,7 @@ router.post('/payments', upload.single('screenshot'), ah(async (req, res) => {
   let groups = [];
   try { groups = JSON.parse(req.body?.groups || '[]'); } catch { groups = []; }
   if (!req.file) return fail(req, res, 400, 'receiptRequired');
-  if (!['course', 'subscription', 'session', 'group', 'group_subscription'].includes(purpose) || !['CBE', 'TELEBIRR'].includes(method) || !referenceId?.trim()) {
+  if (!['course', 'subscription', 'session', 'group', 'group_subscription', 'topup'].includes(purpose) || !['CBE', 'TELEBIRR'].includes(method) || !referenceId?.trim()) {
     return fail(req, res, 400, 'paymentFields');
   }
   const { amount, error, quote } = await amountFor(req, purpose, courseId, bookingId, categoryId, Array.isArray(groups) ? groups : []);
@@ -157,14 +163,29 @@ router.get('/payments', ah(async (req, res) =>
     .populate('course', 'title titleAm').populate('category', 'title titleAm'))));
 
 // ---------- 1-on-1 bookings ----------
+// Live price preview: the server does the maths (same function used when the booking is saved).
+router.get('/bookings/quote', ah(async (req, res) => {
+  const { error, quote } = await tutoringQuote(req.query);
+  if (error) return fail(req, res, 400, error);
+  res.json(quote);
+}));
+
 router.post('/bookings', ah(async (req, res) => {
   const { mode, preferredAt, topic, notes } = req.body || {};
   const when = new Date(preferredAt);
   if (!['online', 'in_person'].includes(mode) || Number.isNaN(when.getTime()) || !topic?.trim()) return fail(req, res, 400, 'bookingFields');
-  const b = await Booking.create({ user: req.user.id, mode, preferredAt: when, topic: topic.trim(), notes });
+  // Price, discount and split are always recomputed here; any price sent by the browser is ignored.
+  const { error, quote } = await tutoringQuote(req.body);
+  if (error) return fail(req, res, 400, error);
+  const b = await Booking.create({
+    user: req.user.id, mode, preferredAt: when, topic: topic.trim(), notes,
+    durationHours: quote.durationHours, contentType: quote.contentType,
+    theoryPercent: quote.theoryPercent, practicalPercent: quote.practicalPercent,
+    rateUsed: quote.rateUsed, discountPercent: quote.discountPercent, listPriceEtb: quote.listPriceEtb, priceEtb: quote.priceEtb,
+  });
   await notifyAdmins({
-    type: 'booking_new', params: { name: req.user.name, mode, when: when.toISOString() },
-    title: 'New 1-on-1 request', body: `${req.user.name} · ${mode}`, link: '/admin/bookings',
+    type: 'booking_new', params: { name: req.user.name, mode, when: when.toISOString(), hours: quote.durationHours },
+    title: 'New 1-on-1 request', body: `${req.user.name} · ${mode} · ${quote.durationHours}h`, link: '/admin/bookings',
   });
   res.json({ id: b.id });
 }));

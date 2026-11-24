@@ -105,6 +105,25 @@ export default function Settings() {
             {field('sessionPriceOnlineEtb', t('admin.settings.sessionOnline'), 'number')}
             {field('sessionPriceInPersonEtb', t('admin.settings.sessionInPerson'), 'number')}
           </div>
+          <div className="bg-ink rounded-xl p-4 text-sm">
+            <p className="font-semibold mb-1">{t('admin.settings.sessionTableTitle')}</p>
+            <table className="w-full text-left">
+              <thead className="text-xs text-muted"><tr>
+                <th className="py-1">{t('admin.settings.hoursCol')}</th><th>{t('admin.settings.discountCol')}</th>
+                <th>{t('admin.settings.onlineCol')}</th><th>{t('admin.settings.inPersonCol')}</th>
+              </tr></thead>
+              <tbody>
+                {(p.tutoringOptions || []).map((o) => (
+                  <tr key={o.hours} className="border-t border-line">
+                    <td className="py-1">{t('common.hours', { h: o.hours })}</td><td>{o.discountPercent}%</td>
+                    <td>{etb(Math.round(Number(s.sessionPriceOnlineEtb || 0) * o.hours * (1 - o.discountPercent / 100)))}</td>
+                    <td>{etb(Math.round(Number(s.sessionPriceInPersonEtb || 0) * o.hours * (1 - o.discountPercent / 100)))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-xs text-muted-soft mt-2">{t('admin.settings.sessionTableNote')}</p>
+          </div>
           <div className="bg-ink rounded-xl p-4 text-sm leading-7">
             <span className="text-muted">{t('admin.settings.allSeparately')}</span> {etb(p.allCoursesTotal)}<br />
             <span className="text-muted">{t('admin.settings.monthlyStudents')}</span> <strong className="text-teal-soft">{etb(previewMonthly)}</strong>

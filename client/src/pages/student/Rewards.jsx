@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n/index.jsx';
 import useTelegramShare from '../../components/TelegramShare.jsx';
 import StatusPill from '../../components/StatusPill.jsx';
 import Icon from '../../components/Icon.jsx';
+import TokenTopUp from '../../components/TokenTopUp.jsx';
 
 // Referral progress (synced with the Telegram bot), reward requests and course credit.
 export default function Rewards() {
@@ -33,15 +34,17 @@ export default function Rewards() {
       <section className="grid sm:grid-cols-3 gap-4">
         <div className="card p-5 border-cyan-300/30">
           <p className="text-[13px] text-muted">{t('rewards.credit')}</p>
-          <p className="mt-2 text-3xl font-semibold text-cyan-200">{d ? etb(d.creditEtb) : '…'}</p>
+          <p className="mt-2 text-3xl font-semibold text-cyan-200">{d ? t('tokens.count', { n: Number(d.creditEtb || 0).toLocaleString('en-US') }) : '…'}</p>
         </div>
         <div className="card p-5">
           <p className="text-[13px] text-muted">Telegram</p>
           <p className="mt-2 font-semibold">{d?.telegramUsername || '—'}</p>
           <p className={`text-xs mt-1 ${d?.telegramLinked ? 'text-teal-soft' : 'text-muted-dim'}`}>{d?.telegramLinked ? `✓ ${t('rewards.linked')}` : t('rewards.notLinked')}</p>
         </div>
-        <div className="card p-5 text-sm text-muted-soft flex items-center">{t('rewards.spend')}</div>
+        <div className="card p-5 text-sm text-muted-soft flex flex-col justify-center gap-2"><p>{t('tokens.rule')}</p><p>{t('rewards.spend')}</p></div>
       </section>
+
+      <TokenTopUp onDone={() => { data.reload(); credits.reload(); }} />
 
       <section className="flex flex-col gap-4">
         {d?.campaigns.length === 0 && <p className="text-muted">{t('rewards.noCampaigns')}</p>}
@@ -106,10 +109,10 @@ export default function Rewards() {
           {credits.data?.transactions.map((x) => (
             <div key={x.id} className="flex items-center justify-between gap-3 text-sm border-b border-line pb-2.5 last:border-0">
               <span className="min-w-0">
-                {t(`rewards.reasons.${x.reason}`)}{x.course ? ` · ${loc(x.course, 'title')}` : ''}{x.category ? ` · ${loc(x.category, 'title')}` : ''}
+                {t(`rewards.reasons.${x.reason}`)}{x.lesson ? ` · ${loc(x.lesson, 'title')}` : x.course ? ` · ${loc(x.course, 'title')}` : ''}{x.category ? ` · ${loc(x.category, 'title')}` : ''}
                 <span className="block text-xs text-muted-dim">{fmtDate(x.createdAt)}</span>
               </span>
-              <span className={x.amountEtb > 0 ? 'text-cyan-200 font-semibold' : 'text-muted-soft'}>{x.amountEtb > 0 ? '+' : ''}{etb(x.amountEtb)}</span>
+              <span className={x.amountEtb > 0 ? 'text-cyan-200 font-semibold' : 'text-muted-soft'}>{x.amountEtb > 0 ? '+' : ''}{t('tokens.count', { n: Number(x.amountEtb).toLocaleString('en-US') })}</span>
             </div>
           ))}
         </section>
