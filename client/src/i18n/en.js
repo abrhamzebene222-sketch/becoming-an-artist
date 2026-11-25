@@ -207,7 +207,6 @@ export default {
     youtubeUrl: 'YouTube URL', caption: 'Caption (optional)', up: 'Move up', down: 'Move down', invalidYoutube: 'Paste a valid YouTube link.',
     extra: 'Extra notes & YouTube under the video (optional)', previewLesson: 'Free Preview Lesson — anyone can open it to evaluate the course',
     editContent: 'Edit content', saveContent: 'Save content', cancel: 'Cancel', empty: 'Add text boxes, images or YouTube videos.',
-    editorTitle: 'Edit lesson', closeWindow: 'Close this window', lessonMissing: 'This lesson was not found.',
   },
   boards: {
     news: 'Daily news & announcements', community: 'Community & Telegram', referral: 'Referral & sponsored',
@@ -256,7 +255,7 @@ export default {
   },
   promoAdmin: {
     title: 'Promo & announcement boards', text: '3 boards × 2 flipping units. Image, title, text and link flip together. Replacing an image deletes the old one.',
-    board1: 'Board 1 · Daily news / course announcements', board2: 'Board 2 · Community & Telegram channel', board3: 'Board 3 · Referral & sponsored sharing',
+    board1: 'Board 1 · Daily news / course announcements', board1Note: 'This board automatically shows the latest 5 posts from the News menu ("Read more" opens the full news). The units below are shown only while there is no active news.', board2: 'Board 2 · Community & Telegram channel', board3: 'Board 3 · Referral & sponsored sharing',
     unit: 'Unit {n}', titleEn: 'Title (English)', titleAm: 'Title (Amharic)', descEn: 'Text (English)', descAm: 'Text (Amharic)',
     link: 'Link URL', linkLabel: 'Button label', linkLabelAm: 'Button label (Amharic)', active: 'Show', save: 'Save unit',
   },

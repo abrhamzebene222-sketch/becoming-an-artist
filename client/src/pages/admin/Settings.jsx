@@ -99,6 +99,24 @@ export default function Settings() {
 
         <section className="card p-6 flex flex-col gap-3">
           <h2 className="text-lg font-semibold">{t('admin.settings.pricingTitle')}</h2>
+          <div className="rounded-xl border border-teal/40 bg-teal-active/20 p-4 flex flex-col gap-3">
+            <h3 className="font-semibold">{t('credit.settingsTitle')}</h3>
+            <p className="text-sm text-muted-soft leading-relaxed">{t('credit.how')}</p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <label className="label">{t('credit.rateLabel')}
+                <input type="number" min="0" step="1" className="input" value={s.creditHourRateEtb ?? ''} onChange={(e) => setS({ ...s, creditHourRateEtb: e.target.value })} />
+              </label>
+              <label className="label">{t('credit.defaultLabel')}
+                <input type="number" min="0.1" max="10" step="0.1" className="input" value={s.defaultCreditHours ?? ''} onChange={(e) => setS({ ...s, defaultCreditHours: e.target.value })} />
+              </label>
+            </div>
+            <p className={`text-sm ${Number(s.creditHourRateEtb) > 0 ? 'text-mint' : 'text-[#F2D98A]'}`} role="status">
+              {Number(s.creditHourRateEtb) > 0 ? t('credit.on') : t('credit.off')}
+            </p>
+            {Number(s.creditHourRateEtb) > 0 && (
+              <p className="text-sm text-teal-soft">{t('credit.example', { h: 1.4, rate: Number(s.creditHourRateEtb), price: Math.round(1.4 * Number(s.creditHourRateEtb)) })}</p>
+            )}
+          </div>
           <div className="grid sm:grid-cols-2 gap-3">
             {field('subscriptionDiscountPercent', t('admin.settings.discount'), 'number')}
             {field('subscriptionFixedPriceEtb', t('admin.settings.fixed'), 'number')}

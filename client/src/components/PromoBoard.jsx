@@ -1,4 +1,3 @@
-import { Capacitor } from '@capacitor/core';
 import { Link } from 'react-router-dom';
 import { cdn } from '../api.js';
 import { useI18n } from '../i18n/index.jsx';
@@ -57,27 +56,23 @@ export default function PromoBoard({ board, items, telegram, onShare }) {
                     <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-cyan-200">
                       <Icon name={meta.icon} size={13} />{t(`boards.${meta.key}`)}
                     </span>
-                    <p className="text-lg sm:text-xl font-semibold text-white mt-1 line-clamp-2">{loc(p, 'title')}</p>
+                    {p.newsId
+                      ? <Link to={`/news/${p.newsId}`} tabIndex={-1} className="block text-lg sm:text-xl font-semibold text-white mt-1 line-clamp-2 no-underline hover:text-cyan-100">{loc(p, 'title')}</Link>
+                      : <p className="text-lg sm:text-xl font-semibold text-white mt-1 line-clamp-2">{loc(p, 'title')}</p>}
                     {loc(p, 'description') && <p className="text-sm text-cyan-50/90 mt-1 line-clamp-2">{loc(p, 'description')}</p>}
                     <div className="mt-3 flex flex-wrap gap-2">
+                      {p.newsId && (
+                        <Link to={`/news/${p.newsId}`} tabIndex={i === current ? 0 : -1}
+                          className="btn py-2 px-3.5 text-sm bg-cyan-300 text-[#062027] hover:bg-cyan-200">
+                          {t('news.readMore')} →
+                        </Link>
+                      )}
                       {board === 3 && (
                         <button type="button" onClick={onShare} tabIndex={i === current ? 0 : -1}
                           className="btn py-2 px-3.5 text-sm bg-cyan-300 text-[#062027] hover:bg-cyan-200">
                           <Icon name="send" size={15} />{t('boards.shareTelegram')}
                         </button>
                       )}
-                      {p.newsId && (Capacitor.isNativePlatform()
-                        ? (
-                          <Link to={`/news/${p.newsId}`} tabIndex={i === current ? 0 : -1}
-                            className="btn py-2 px-3.5 text-sm border border-cyan-200/60 text-cyan-50 hover:border-cyan-100">
-                            {t('news.readMore')} ↗
-                          </Link>
-                        ) : (
-                          <a href={`/news/${p.newsId}`} target="_blank" rel="noreferrer" tabIndex={i === current ? 0 : -1}
-                            className="btn py-2 px-3.5 text-sm border border-cyan-200/60 text-cyan-50 hover:border-cyan-100">
-                            {t('news.readMore')} ↗
-                          </a>
-                        ))}
                       {linkUrl && (
                         <a href={linkUrl} target="_blank" rel="noreferrer" tabIndex={i === current ? 0 : -1}
                           className="btn py-2 px-3.5 text-sm border border-cyan-200/60 text-cyan-50 hover:border-cyan-100">

@@ -6,6 +6,7 @@ export default {
   course: 'drawing-fundamentals--looking-and-critique--learning-to-see--looking-and-critique-analyzing-a-drawing',
   title: "Comparing Master Drawings: What Makes a Drawing \"Work\"",
   titleAm: "ማነጻጸር የዋና አርቲስቶች ስዕሎች: ምን የሚያደርገው ስዕል \"ሥራ\"",
+  creditHours: 1,
   blocks: [
       {
         "type": "heading",

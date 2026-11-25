@@ -61,19 +61,148 @@ export async function hasLessonAccess(user, lesson, course) {
   return !!(await LessonUnlock.exists({ user: user.id, lesson: lesson._id || lesson.id }));
 }
 
+// ---------- CREDIT-HOUR PRICING ----------
+// One number runs the whole price list:  Admin › Settings › "Price of one credit hour" (ETB).
+//   lesson price = creditHours × rate           (e.g. 1.4 × 40 = 56 ETB, or 56 tokens — 1 token = 1 ETB)
+//   course price = sum of its lesson prices     (so buying every lesson one by one costs exactly the course price)
+//   group  price = sum of the prices of every paid, published course below it (sub-groups included, free sub-groups skipped)
+// Each lesson is rounded on its own, so every total is a whole number and the sums always agree.
+// Lessons with no content yet (an empty text lesson) are not sold and add nothing to a price — the price grows as lessons are written.
+// A lesson with no creditHours uses Settings › "Default credit hours".
+// While the rate is 0 the old stored prices (Course.priceEtb / Category.priceEtb) work exactly as before.
+export const DEFAULT_CREDIT_HOURS = 1;
+export const MIN_CREDIT_HOURS = 0.1;
+export const MAX_CREDIT_HOURS = 10;
+
+/**
+ * Validate the creditHours an admin typed in a form.
+ *   undefined → { skip: true }   (field not sent: leave the lesson alone)
+ *   '' / null → { value: null }  (clear it: the lesson uses the default credit hours)
+ *   bad       → { error: 'creditHoursInvalid' }
+ */
+export function creditHoursInput(v) {
+  if (v === undefined) return { skip: true };
+  if (v === '' || v === null) return { value: null };
+  const n = Number(typeof v === 'string' ? v.replace(',', '.') : v);
+  if (!Number.isFinite(n) || n < MIN_CREDIT_HOURS || n > MAX_CREDIT_HOURS) return { error: 'creditHoursInvalid' };
+  return { value: Math.round(n * 100) / 100 };
+}
+
+/** Admin / AI input → a number with at most 2 decimals, between 0.01 and 10; anything else → null (= use the default). */
+export function cleanCreditHours(v) {
+  if (v === '' || v == null) return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(MAX_CREDIT_HOURS, Math.round(n * 100) / 100);
+}
+
+export async function creditConfig() {
+  const rate = Math.max(0, Number(await getSetting('creditHourRateEtb', 0)) || 0);
+  const dh = Number(await getSetting('defaultCreditHours', DEFAULT_CREDIT_HOURS));
+  return { rate, defaultHours: dh > 0 ? dh : DEFAULT_CREDIT_HOURS, active: rate > 0 };
+}
+
+export const lessonHours = (l, cfg) => (Number(l?.creditHours) > 0 ? Number(l.creditHours) : cfg.defaultHours);
+export const creditPrice = (hours, cfg) => Math.round(Number((hours * cfg.rate).toFixed(6)));
+const r2 = (n) => Math.round(n * 100) / 100;
+
+// A lesson is "sellable" once it has something to read or watch.
+const SELLABLE = { $or: [{ $ne: ['$kind', 'blocks'] }, { $gt: [{ $size: { $ifNull: ['$blocks', []] } }, 0] }] };
+
+/**
+ * Every price in the app, computed together in 3 small queries.
+ *   p.cfg     { rate, defaultHours, active }
+ *   p.lesson  Map lessonId → { course, hours, price }     (sellable lessons only)
+ *   p.course  Map courseId → { price, hours, lessons }
+ *   p.group   Map groupId  → { price, hours, lessons }
+ * When the rate is 0 the maps stay empty and the helpers below fall back to the old stored prices.
+ */
+export async function getPrices() {
+  const cfg = await creditConfig();
+  const p = { cfg, lesson: new Map(), course: new Map(), group: new Map() };
+  if (!cfg.active) return p;
+
+  const [{ list }, courses, rows] = await Promise.all([
+    getCategories(),
+    Course.find({}, 'category isFree isPublished').lean(),
+    Lesson.aggregate([
+      { $project: { course: 1, creditHours: 1, sellable: SELLABLE } },
+      { $match: { sellable: true } },
+    ]),
+  ]);
+
+  for (const r of rows) {
+    const hours = lessonHours(r, cfg);
+    const price = creditPrice(hours, cfg);
+    const cid = String(r.course);
+    p.lesson.set(String(r._id), { course: cid, hours, price });
+    const m = p.course.get(cid) || { price: 0, hours: 0, lessons: 0 };
+    m.price += price; m.hours += hours; m.lessons += 1;
+    p.course.set(cid, m);
+  }
+  for (const m of p.course.values()) m.hours = r2(m.hours);
+
+  const byId = new Map(list.map((c) => [String(c._id), c]));
+  const kids = new Map();
+  for (const c of list) {
+    const par = c.parent && byId.has(String(c.parent)) ? String(c.parent) : null;
+    if (!kids.has(par)) kids.set(par, []);
+    kids.get(par).push(String(c._id));
+  }
+  const coursesIn = new Map();
+  for (const c of courses) {
+    if (!c.isPublished || c.isFree) continue;
+    const k = String(c.category);
+    if (!coursesIn.has(k)) coursesIn.set(k, []);
+    coursesIn.get(k).push(String(c._id));
+  }
+  const visit = (id) => {
+    if (p.group.has(id)) return p.group.get(id);
+    const total = { price: 0, hours: 0, lessons: 0 };
+    p.group.set(id, total);                       // set first: protects against a (broken) parent loop
+    if (!byId.get(id)?.isFree) {                  // a free sub-group adds nothing to the group above it
+      const parts = [
+        ...(coursesIn.get(id) || []).map((cid) => p.course.get(cid)).filter(Boolean),
+        ...(kids.get(id) || []).map(visit),
+      ];
+      for (const x of parts) { total.price += x.price; total.hours += x.hours; total.lessons += x.lessons; }
+      total.hours = r2(total.hours);
+    }
+    return total;
+  };
+  for (const c of list) visit(String(c._id));
+  return p;
+}
+
+const legacyCoursePrice = (c) => (c?.isFree ? 0 : Math.max(0, Math.round(Number(c?.priceEtb) || 0)));
+/** Price (ETB) of one course: credit-hour price when the rate is set, otherwise the stored price. */
+export const coursePriceOf = (p, c) => (p.cfg.active
+  ? (c.isFree ? 0 : p.course.get(String(c._id ?? c.id))?.price || 0)
+  : legacyCoursePrice(c));
+/** Price (ETB) of a whole group. */
+export const groupPriceOf = (p, cat) => (p.cfg.active
+  ? (cat.isFree ? 0 : p.group.get(String(cat._id ?? cat.id))?.price || 0)
+  : groupPrice(cat));
+/** Token price of one lesson before the "never pay twice" cap. 0 = this lesson cannot be bought on its own. */
+export const lessonBaseOf = (p, lessonId, coursePrice, lessonCount) => (p.cfg.active
+  ? p.lesson.get(String(lessonId))?.price || 0
+  : (lessonCount > 0 ? Math.ceil(coursePrice / lessonCount) : 0));
+
 // ---------- Tokens (1 token = 1 ETB; balance = User.creditEtb) ----------
 export const TOPUP_MIN = 100;
 export const TOPUP_MAX = 200000;
 
 /**
  * Token prices for one course for one user.
- * lesson price = ceil(course price / number of lessons), but never more than what is still unpaid on the course,
- * so buying every lesson one by one costs exactly the course price (never more).
+ * lesson price = creditHours × rate (see CREDIT-HOUR PRICING above; before the rate is set: ceil(course price / lessons)),
+ * but never more than what is still unpaid on the course, so buying every lesson one by one costs exactly the course price.
  * Unlocking the whole course later costs the course price minus the tokens already spent on its lessons.
+ * Pass `p` (from getPrices()) when you already have it, and `lessonId` to get that lesson's price.
  */
-export async function courseTokenInfo(userId, course, lessonCount) {
-  const price = course.isFree ? 0 : Math.max(0, Math.round(Number(course.priceEtb) || 0));
-  const base = lessonCount > 0 ? Math.ceil(price / lessonCount) : 0;
+export async function courseTokenInfo(userId, course, lessonCount, p = null, lessonId = null) {
+  const prices = p || await getPrices();
+  const price = coursePriceOf(prices, course);
+  const base = lessonId ? lessonBaseOf(prices, lessonId, price, lessonCount) : 0;
   let spent = 0;
   const unlockedIds = new Set();
   if (userId) {
@@ -81,7 +210,7 @@ export async function courseTokenInfo(userId, course, lessonCount) {
     for (const r of rows) { spent += r.paidEtb || 0; unlockedIds.add(String(r.lesson)); }
   }
   const courseRemaining = Math.max(0, price - spent);
-  return { price, base, spent, unlockedIds, courseRemaining, lessonPrice: Math.min(base, courseRemaining) };
+  return { price, base, spent, unlockedIds, courseRemaining, lessonPrice: Math.min(base, courseRemaining), prices };
 }
 
 /**
@@ -152,24 +281,25 @@ export const groupPrice = (cat) => (cat?.isFree ? 0 : Math.max(0, Number(cat?.pr
 
 /**
  * Live quote for a modular monthly plan built from selected groups.
- * base = Σ monthly price of each selected group (monthlyPriceEtb, else priceEtb, else Σ its paid course prices)
+ * base = Σ monthly price of each selected group (monthlyPriceEtb, else the group price [credit-hour price when the rate is set], else Σ its paid course prices)
  * discount = admin tier matching the total number of lessons inside the selection.
  */
 export async function groupSubscriptionQuote(selectedIds) {
   const ids = await normalizeSelection(selectedIds || []);
   const { byId } = await getCategories();
   const tiers = cleanTiers(await getSetting('subscriptionTiers', DEFAULT_TIERS));
+  const prices = await getPrices();
   const items = [];
   const allCourseIds = new Set();
   for (const id of ids) {
     const cat = byId.get(id);
     const sub = await descendantIds(id);
-    const courses = await Course.find({ category: { $in: sub }, isPublished: true, isFree: { $ne: true } }, 'priceEtb').lean();
+    const courses = await Course.find({ category: { $in: sub }, isPublished: true, isFree: { $ne: true } }, 'priceEtb isFree').lean();
     const counts = await lessonCountsByCourse(courses.map((c) => c._id));
     const lessons = courses.reduce((s, c) => s + (counts[String(c._id)] || 0), 0);
     courses.forEach((c) => allCourseIds.add(String(c._id)));
-    const coursesTotal = courses.reduce((s, c) => s + (c.priceEtb || 0), 0);
-    const monthly = Number(cat.monthlyPriceEtb) || Number(cat.priceEtb) || coursesTotal;
+    const coursesTotal = courses.reduce((s, c) => s + coursePriceOf(prices, c), 0);
+    const monthly = Number(cat.monthlyPriceEtb) || groupPriceOf(prices, cat) || coursesTotal;
     items.push({ id, title: cat.title, titleAm: cat.titleAm, lessons, courses: courses.length, monthlyEtb: monthly });
   }
   const lessonCount = items.reduce((s, i) => s + i.lessons, 0);
@@ -225,11 +355,18 @@ export async function tutoringQuote({ mode, hours, contentType, theoryPercent })
 
 /** Legacy pricing (all paid courses monthly) + session prices + discount tiers. */
 export async function pricing() {
-  const [agg] = await Course.aggregate([
-    { $match: { isPublished: true, isFree: { $ne: true } } },
-    { $group: { _id: null, total: { $sum: '$priceEtb' } } },
-  ]);
-  const total = agg?.total || 0;
+  const prices = await getPrices();
+  let total = 0;
+  if (prices.cfg.active) {
+    const paid = await Course.find({ isPublished: true, isFree: { $ne: true } }, 'isFree').lean();
+    total = paid.reduce((sum, c) => sum + coursePriceOf(prices, c), 0);
+  } else {
+    const [agg] = await Course.aggregate([
+      { $match: { isPublished: true, isFree: { $ne: true } } },
+      { $group: { _id: null, total: { $sum: '$priceEtb' } } },
+    ]);
+    total = agg?.total || 0;
+  }
   const discount = Number(await getSetting('subscriptionDiscountPercent', 40));
   const fixed = Number(await getSetting('subscriptionFixedPriceEtb', 0));
   const monthly = fixed > 0 ? fixed : Math.round(total * (1 - discount / 100));
@@ -244,6 +381,7 @@ export async function pricing() {
     // Both session prices above are PER HOUR. Duration discounts are fixed:
     tutoringOptions: TUTORING_OPTIONS,
     topup: { min: TOPUP_MIN, max: TOPUP_MAX },
+    credit: { active: prices.cfg.active, rate: prices.cfg.rate, defaultHours: prices.cfg.defaultHours },
     tiers: cleanTiers(await getSetting('subscriptionTiers', DEFAULT_TIERS)),
   };
 }

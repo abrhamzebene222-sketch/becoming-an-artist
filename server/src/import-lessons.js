@@ -33,6 +33,7 @@ for (const p of prepared) {
   p.lesson.blocks.forEach((b) => { t[b.type] = (t[b.type] || 0) + 1; });
   console.log(`✔ ${p.lesson.slot}  ${p.lesson.title}`);
   console.log(`   blocks: ${p.lesson.blocks.length} (${Object.entries(t).map(([k, v]) => `${k}×${v}`).join(' ') || 'none'})`);
+  console.log(`   credit hours: ${p.lesson.creditHours ?? 'not set (uses the Settings default)'}`);
   console.log(`   slot  : ${describe(p.slot)}`);
   console.log(`   course: ${p.slot.courseSlug}  →  sortOrder ${p.lesson.position - 1}`);
   p.warnings.forEach((w) => console.log(`   ! ${w}`));
@@ -64,7 +65,10 @@ try {
       || (await Lesson.findOne({ course: course._id, title: lesson.title }));
 
     if (existing && existing.blocks?.length && !FORCE) {
-      console.log(`= ${lesson.slot} kept (already has ${existing.blocks.length} blocks — use --force to replace)`);
+      // The text is never touched without --force, but a missing creditHours may be filled in (it never overwrites one you set).
+      const fill = lesson.creditHours != null && !(existing.creditHours > 0);
+      if (fill && APPLY) await Lesson.updateOne({ _id: existing._id }, { $set: { creditHours: lesson.creditHours } });
+      console.log(`= ${lesson.slot} kept (already has ${existing.blocks.length} blocks — use --force to replace)${fill ? `${APPLY ? ' · creditHours set to' : ' · would set creditHours to'} ${lesson.creditHours}` : ''}`);
       stats.kept += 1; continue;
     }
     const doc = {
@@ -74,6 +78,7 @@ try {
       titleAm: lesson.titleAm || undefined,
       kind: 'blocks',
       blocks: lesson.blocks,
+      ...(lesson.creditHours != null ? { creditHours: lesson.creditHours } : {}),
       sortOrder: Math.max(0, (lesson.position || 1) - 1),
     };
     if (!APPLY) { console.log(`${existing ? '~' : '+'} ${lesson.slot} would be ${existing ? 'updated' : 'created'} → ${course.title}`); continue; }

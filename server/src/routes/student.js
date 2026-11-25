@@ -9,7 +9,7 @@ import { requireAuth, signScoped, verify } from '../auth.js';
 import { notifyAdmins, addStream } from '../notify.js';
 import { fail } from '../i18n.js';
 import {
-  ah, pricing, tutoringQuote, TOPUP_MIN, TOPUP_MAX, activeSubscription, activeGroupSubscriptions, unlockedGroupIds, groupSubscriptionQuote, groupPrice, hasGroupAccess,
+  ah, pricing, tutoringQuote, TOPUP_MIN, TOPUP_MAX, activeSubscription, activeGroupSubscriptions, unlockedGroupIds, groupSubscriptionQuote, getPrices, coursePriceOf, groupPriceOf, hasGroupAccess,
 } from '../lib.js';
 import { uploadReceipt, deleteReceipt, isConfigured } from '../cloudinary.js';
 import { descendantIds } from '../tree.js';
@@ -98,9 +98,10 @@ async function amountFor(req, purpose, courseId, bookingId, categoryId, groups) 
     if (!mongoose.isValidObjectId(categoryId)) return {};
     const cat = await Category.findById(categoryId).lean();
     if (!cat) return {};
-    if (!groupPrice(cat)) return { error: 'noGroupPrice' };
+    const gPrice = groupPriceOf(await getPrices(), cat);   // credit-hour price (or the stored price before the rate is set)
+    if (!gPrice) return { error: 'noGroupPrice' };
     if (await hasGroupAccess(req.user, categoryId)) return { error: 'alreadyUnlocked' };
-    return { amount: groupPrice(cat) };
+    return { amount: gPrice };
   }
   if (purpose === 'group_subscription') {
     const quote = await groupSubscriptionQuote(groups);
@@ -111,7 +112,7 @@ async function amountFor(req, purpose, courseId, bookingId, categoryId, groups) 
     if (!mongoose.isValidObjectId(courseId)) return {};
     const course = await Course.findOne({ _id: courseId, isPublished: true }).lean();
     if (course?.isFree) return { error: 'freeCourse' };
-    return { amount: course?.priceEtb, title: course?.title };
+    return { amount: course ? coursePriceOf(await getPrices(), course) : undefined, title: course?.title };
   }
   if (purpose === 'session' && mongoose.isValidObjectId(bookingId)) {
     const b = await Booking.findOne({ _id: bookingId, user: req.user.id, status: 'approved' }).lean();

@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { useApi, useAuth } from '../../api.js';
 import { useI18n } from '../../i18n/index.jsx';
 import LessonContent from '../../components/LessonContent.jsx';
+import TokenUnlock from '../../components/TokenUnlock.jsx';
 import Icon from '../../components/Icon.jsx';
 
 // One lesson on its own page: /courses/:slug/lessons/:lessonId
@@ -14,6 +15,7 @@ export default function LessonPage() {
   const { user } = useAuth();
   const location = useLocation();
   const course = useApi(`/courses/${slug}`, [slug, user?.id]);
+  const pricing = useApi('/pricing');
   const c = course.data;
 
   // Every new lesson starts at the top of the page
@@ -37,7 +39,7 @@ export default function LessonPage() {
 
   const lesson = lessons[index];
   const access = !!c.hasAccess;
-  const canOpen = (l) => access || l.isPreview;
+  const canOpen = (l) => access || l.isPreview || l.unlocked;     // unlocked = bought on its own with tokens
   const open = canOpen(lesson);
   const prev = index > 0 ? lessons[index - 1] : null;
   const next = index < lessons.length - 1 ? lessons[index + 1] : null;
@@ -53,6 +55,7 @@ export default function LessonPage() {
       <header>
         <span className="eyebrow">{loc(c, 'title')}</span>
         <h1 className="text-2xl sm:text-3xl font-semibold mt-1.5 leading-snug">{lesson.title}</h1>
+        {pricing.data?.credit?.active && lesson.creditHours > 0 && <p className="text-xs text-muted-dim mt-1">{t('credit.hoursShort', { n: lesson.creditHours })}</p>}
         {loc(lesson, 'subtitle') && <p className="text-muted-soft mt-2 leading-relaxed">{loc(lesson, 'subtitle')}</p>}
       </header>
 
@@ -62,8 +65,11 @@ export default function LessonPage() {
         ) : (
           <div className="p-6 flex flex-col gap-4 items-start">
             <p className="flex items-start gap-2 text-[#F2D98A]"><Icon name="lock" size={18} className="mt-0.5 shrink-0" />{user ? t('course.locked') : t('course.signInToWatch')}</p>
+            {user && lesson.tokenPrice > 0 && (
+              <TokenUnlock type="lesson" id={lesson.id} price={lesson.tokenPrice} onDone={course.reload} className="w-full" />
+            )}
             {user
-              ? <Link to={backToCourse} className="btn-primary">{t('lessonPage.unlockCourse')}</Link>
+              ? <Link to={backToCourse} className={lesson.tokenPrice > 0 ? 'btn-ghost' : 'btn-primary'}>{t('lessonPage.unlockCourse')}</Link>
               : <Link to="/login" state={{ from: location.pathname }} className="btn-primary">{t('nav.signIn')}</Link>}
           </div>
         )}

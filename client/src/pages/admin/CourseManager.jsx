@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Capacitor } from '@capacitor/core';
 import { api, useApi, etb } from '../../api.js';
 import { useI18n } from '../../i18n/index.jsx';
 import Icon from '../../components/Icon.jsx';
 import CategoryTree from '../../components/CategoryTree.jsx';
 import ImageUploader, { AccountSelect } from '../../components/ImageUploader.jsx';
 import BlockEditor, { withKeys, stripKeys } from '../../components/BlockEditor.jsx';
+import { useConfirmDelete } from '../../components/ConfirmDelete.jsx';
 import { buildTree, flatten, subtreeIds, indexTree } from '../../lib/tree.js';
 
 const EMPTY_COURSE = {
@@ -19,6 +18,8 @@ export default function CourseManager() {
   const { t, loc } = useI18n();
   const flat = useApi('/admin/curriculum');
   const contact = useApi('/contact');
+  const pricing = useApi('/pricing');
+  const credit = pricing.data?.credit || { active: false, rate: 0, defaultHours: 1 };
   const roots = useMemo(() => buildTree(flat.data || []), [flat.data]);
   const index = useMemo(() => indexTree(roots), [roots]);
   const [expanded, setExpanded] = useState(() => new Set());
@@ -43,18 +44,19 @@ export default function CourseManager() {
   const newSub = (parent) => { clear(); expandPath(parent?.id); setSel({ type: 'group', data: { ...EMPTY_GROUP, parent: parent?.id || null } }); };
   const newCourse = (g) => { clear(); expandPath(g.id); setSel({ type: 'course', data: { ...EMPTY_COURSE, category: g.id } }); };
 
-  const deleteGroup = async (g) => {
-    if (!window.confirm(t('explorer.deleteGroupConfirm', { name: loc(g, 'title') }))) return;
-    await api(`/admin/categories/${g.id}`, { method: 'DELETE' });
+  const { ask: askDelete, dialog: deleteDialog } = useConfirmDelete();
+  const deleteGroup = (g) => askDelete(t('explorer.deleteGroupConfirm', { name: loc(g, 'title') }), async (password) => {
+    await api(`/admin/categories/${g.id}`, { method: 'DELETE', body: { password } });
     if (sel && (sel.data.id === g.id || subtreeIds(g).has(sel.data.category))) setSel(null);
     flat.reload();
-  };
+  });
 
   const allCourses = (flat.data || []).flatMap((c) => c.courses);
   const currentCourse = sel?.type === 'course' && sel.data.id && allCourses.find((c) => c.id === sel.data.id);
 
   return (
     <div className="flex flex-col gap-6">
+      {deleteDialog}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold">{t('admin.courses.title')}</h1>
@@ -77,15 +79,15 @@ export default function CourseManager() {
         </aside>
 
         {!sel ? <p className="text-muted">{t('admin.courses.selectHint')}</p> : sel.type === 'group' ? (
-          <GroupEditor key={sel.data.id || `new-${sel.data.parent}`} group={sel.data} roots={roots} index={index}
+          <GroupEditor key={sel.data.id || `new-${sel.data.parent}`} group={sel.data} roots={roots} index={index} credit={credit}
             onSaved={(id) => { flat.reload(); expandPath(id); }} msg={msg} setMsg={setMsg} err={err} setErr={setErr}
             onDelete={() => deleteGroup(index.get(sel.data.id).node)} />
         ) : (
           <div className="flex flex-col gap-6 min-w-0">
-            <CourseEditor key={sel.data.id || `new-${sel.data.category}`} course={sel.data} roots={roots} links={contact.data?.submissionLinks || []}
+            <CourseEditor key={sel.data.id || `new-${sel.data.category}`} course={sel.data} roots={roots} links={contact.data?.submissionLinks || []} credit={credit}
               onSaved={(c) => { setSel({ type: 'course', data: c }); flat.reload(); expandPath(c.category); }}
               onDeleted={() => { setSel(null); flat.reload(); }} />
-            {currentCourse && <Lessons course={currentCourse} onChange={flat.reload} />}
+            {currentCourse && <Lessons course={currentCourse} onChange={flat.reload} credit={credit} />}
           </div>
         )}
       </div>
@@ -100,7 +102,7 @@ function TreeOptions({ roots, exclude = new Set() }) {
   ));
 }
 
-function GroupEditor({ group, roots, index, onSaved, onDelete, msg, setMsg, err, setErr }) {
+function GroupEditor({ group, roots, index, credit, onSaved, onDelete, msg, setMsg, err, setErr }) {
   const { t, loc } = useI18n();
   const [g, setG] = useState(group);
   const set = (patch) => setG((x) => ({ ...x, ...patch }));
@@ -150,7 +152,17 @@ function GroupEditor({ group, roots, index, onSaved, onDelete, msg, setMsg, err,
         <label className="flex items-center gap-2 text-sm min-h-11"><input type="checkbox" className="accent-teal w-4 h-4" checked={!!g.isFree} onChange={(e) => set({ isFree: e.target.checked })} />{t('explorer.freeGroup')}</label>
         {!g.isFree && (
           <div className="grid sm:grid-cols-2 gap-3">
-            <label className="label">{t('explorer.groupPrice')}<input type="number" min="0" className="input" value={g.priceEtb} onChange={(e) => set({ priceEtb: Number(e.target.value) })} /></label>
+            {credit?.active ? (
+              <div className="label">{t('explorer.groupPrice')}
+                <div className="rounded-xl border border-teal/40 bg-teal-active/20 p-3 text-sm">
+                  <strong className="text-teal-soft">{etb(g.creditPriceEtb || 0)}</strong>
+                  <span className="block text-muted-soft mt-1">{t('credit.calcGroup', { hours: g.creditHours || 0 })}</span>
+                  <span className="block text-xs text-muted mt-1">{t('credit.calcNote')}</span>
+                </div>
+              </div>
+            ) : (
+              <label className="label">{t('explorer.groupPrice')}<input type="number" min="0" className="input" value={g.priceEtb} onChange={(e) => set({ priceEtb: Number(e.target.value) })} /></label>
+            )}
             <label className="label">{t('explorer.monthlyPrice')}<input type="number" min="0" className="input" value={g.monthlyPriceEtb} onChange={(e) => set({ monthlyPriceEtb: Number(e.target.value) })} /></label>
           </div>
         )}
@@ -180,7 +192,7 @@ function GroupEditor({ group, roots, index, onSaved, onDelete, msg, setMsg, err,
   );
 }
 
-function CourseEditor({ course, roots, links, onSaved, onDeleted }) {
+function CourseEditor({ course, roots, links, credit, onSaved, onDeleted }) {
   const { t } = useI18n();
   const [sel, setSel] = useState(course);
   const [msg, setMsg] = useState('');
@@ -196,16 +208,17 @@ function CourseEditor({ course, roots, links, onSaved, onDeleted }) {
       setMsg(t('common.saved')); onSaved(next);
     } catch (e) { setErr(e.message); }
   };
-  const remove = async () => {
-    if (!window.confirm(t('admin.courses.deleteConfirm', { title: sel.title }))) return;
-    await api(`/admin/courses/${sel.id}`, { method: 'DELETE' });
+  const { ask: askDelete, dialog: deleteDialog } = useConfirmDelete();
+  const remove = () => askDelete(t('admin.courses.deleteConfirm', { title: sel.title }), async (password) => {
+    await api(`/admin/courses/${sel.id}`, { method: 'DELETE', body: { password } });
     onDeleted();
-  };
+  });
   const crit = sel.evaluationCriteria || [];
   const weightTotal = crit.reduce((s, k) => s + Number(k.weight || 0), 0);
 
   return (
     <section className="card p-6 flex flex-col gap-4">
+      {deleteDialog}
       <div className="flex flex-wrap justify-between gap-3">
         <h2 className="text-lg font-semibold">{sel.id ? t('admin.courses.editCourse') : t('admin.courses.newCourseTitle')}</h2>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-teal w-4 h-4" checked={!!sel.isPublished} onChange={(e) => set({ isPublished: e.target.checked })} />{t('admin.courses.published')}</label>
@@ -226,10 +239,17 @@ function CourseEditor({ course, roots, links, onSaved, onDeleted }) {
 
       <div className="rounded-xl bg-ink p-4 flex flex-wrap items-end gap-4">
         <label className="flex items-center gap-2 text-sm min-h-11"><input type="checkbox" className="accent-teal w-4 h-4" checked={!!sel.isFree} onChange={(e) => set({ isFree: e.target.checked })} />{t('admin.courses.free')}</label>
-        {!sel.isFree && (
+        {!sel.isFree && !credit?.active && (
           <label className="label w-48">{t('admin.courses.price')}<input type="number" min="0" className="input" value={sel.priceEtb} onChange={(e) => set({ priceEtb: Number(e.target.value) })} /></label>
         )}
-        <span className="text-sm text-muted">{t('admin.courses.studentsSee', { price: sel.isFree ? t('common.free') : sel.priceEtb ? etb(sel.priceEtb) : t('common.priceSoon') })}</span>
+        {!sel.isFree && credit?.active && (
+          <div className="text-sm">
+            <strong className="text-teal-soft">{etb(sel.creditPriceEtb || 0)}</strong>
+            <span className="block text-muted-soft">{t('credit.calcCourse', { price: etb(sel.creditPriceEtb || 0), hours: sel.creditHoursTotal || 0 })}</span>
+            <span className="block text-xs text-muted">{t('credit.calcNote')}</span>
+          </div>
+        )}
+        <span className="text-sm text-muted">{t('admin.courses.studentsSee', { price: sel.isFree ? t('common.free') : (credit?.active ? sel.creditPriceEtb : sel.priceEtb) ? etb(credit?.active ? sel.creditPriceEtb : sel.priceEtb) : t('common.priceSoon') })}</span>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
@@ -294,14 +314,31 @@ async function uploadToCloudinary(file, kind, account, onProgress) {
 
 const mb = (b) => (b ? `${(b / 1048576).toFixed(1)} MB` : '');
 const mins = (s) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '');
-const EMPTY_LESSON = { title: '', subtitle: '', subtitleAm: '', keywords: '', keywordsAm: '', publicId: '', kind: 'blocks', isPreview: false, account: 'env', blocks: [] };
+/** Credit-hours box used when adding a lesson and when editing one. Shows the price it makes once the rate is set. */
+function CreditHoursField({ value, onChange, credit }) {
+  const { t } = useI18n();
+  const n = Number(String(value).replace(',', '.'));
+  const hours = value === '' || value == null ? Number(credit?.defaultHours) || 1 : n;
+  const price = credit?.active && hours > 0 ? Math.round(hours * credit.rate) : null;
+  return (
+    <label className="label">{t('credit.hoursLabel')}
+      <input type="number" min="0.1" max="10" step="0.1" className="input" value={value ?? ''} placeholder={String(credit?.defaultHours ?? 1)}
+        onChange={(e) => onChange(e.target.value)} />
+      <span className="text-xs text-muted-dim">{t('credit.hoursHint', { n: credit?.defaultHours ?? 1 })}</span>
+      {price != null && <span className="text-xs text-teal-soft">{t('credit.example', { h: hours, rate: credit.rate, price })}</span>}
+    </label>
+  );
+}
 
-function Lessons({ course, onChange }) {
+const EMPTY_LESSON = { title: '', creditHours: '', subtitle: '', subtitleAm: '', keywords: '', keywordsAm: '', publicId: '', kind: 'blocks', isPreview: false, account: 'env', blocks: [] };
+
+function Lessons({ course, onChange, credit }) {
   const { t } = useI18n();
   const [form, setForm] = useState(EMPTY_LESSON);
   const [uploadAccount, setUploadAccount] = useState('primary');
   const [err, setErr] = useState('');
   const [progress, setProgress] = useState(null);
+  const [editing, setEditing] = useState(null);
   const [newsMsg, setNewsMsg] = useState({ id: '', text: '', error: false });
   const [fmt, setFmt] = useState('pdf');
   const [exp, setExp] = useState({ id: '', busy: false, text: '', error: false });
@@ -325,8 +362,20 @@ function Lessons({ course, onChange }) {
       setForm(EMPTY_LESSON); onChange();
     } catch (e2) { setErr(e2.message); }
   };
-  const del = async (id) => { await api(`/admin/lessons/${id}`, { method: 'DELETE' }); onChange(); };
+  const { ask: askDelete, dialog: deleteDialog } = useConfirmDelete();
+  const del = (l) => askDelete(`${t('admin.courses.deleteLessonConfirm')}\n"${l.title}"`, async (password) => {
+    await api(`/admin/lessons/${l.id}`, { method: 'DELETE', body: { password } });
+    onChange();
+  });
   const togglePreview = async (l) => { await api(`/admin/lessons/${l.id}`, { method: 'PUT', body: { isPreview: !l.isPreview } }); onChange(); };
+  const saveBlocks = async () => {
+    setErr('');
+    try {
+      await api(`/admin/lessons/${editing.id}`, { method: 'PUT', body: { blocks: stripKeys(editing.blocks), creditHours: editing.creditHours, keywords: editing.keywords, keywordsAm: editing.keywordsAm, subtitle: editing.subtitle, subtitleAm: editing.subtitleAm } });
+      setEditing(null); onChange();
+    }
+    catch (e) { setErr(e.message); }
+  };
   const addToNews = async (l) => {
     setNewsMsg({ id: l.id, text: '', error: false });
     try { await api(`/admin/lessons/${l.id}/news`, { method: 'POST' }); setNewsMsg({ id: l.id, text: t('admin.courses.addedToNews'), error: false }); }
@@ -343,6 +392,7 @@ function Lessons({ course, onChange }) {
 
   return (
     <section className="card p-6 flex flex-col gap-5">
+      {deleteDialog}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">{t('admin.courses.lessons')}</h2>
         <label className="flex items-center gap-2 text-xs text-muted">{t('admin.export.format')}
@@ -359,26 +409,47 @@ function Lessons({ course, onChange }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="flex flex-wrap items-center gap-2 min-w-0"><Icon name={lessonIcon(l)} size={15} />{i + 1}. {l.title}
                 <span className="text-xs text-muted-dim">{[mins(l.durationSec), mb(l.bytes), l.blocks?.length ? `${l.blocks.length} blocks` : ''].filter(Boolean).join(' · ')}</span>
+                <span className="text-xs text-teal-soft" title={t('credit.hoursLabel')}>
+                  {t('credit.hoursShort', { n: l.creditHours ?? credit?.defaultHours ?? 1 })}
+                  {credit?.active && (l.creditPriceEtb > 0 ? ` · ${t('credit.lessonPrice', { n: l.creditPriceEtb })}` : ` · ${t('credit.notSold')}`)}
+                </span>
                 {l.cloudDeliveryType === 'upload' && l.kind !== 'blocks' && <span className="text-xs text-[#F2D98A]" title={t('admin.courses.publicFileTip')}>{t('admin.courses.publicFile')}</span>}
               </span>
               <span className="flex flex-wrap gap-2">
                 <button className={`px-3 py-2 rounded-lg text-xs border ${l.isPreview ? 'border-teal text-mint' : 'border-line-strong text-muted'}`} onClick={() => togglePreview(l)} aria-pressed={l.isPreview}>
                   {l.isPreview ? t('admin.courses.freePreview') : t('admin.courses.locked')}
                 </button>
-                {Capacitor.isNativePlatform()
-                  ? <Link to={`/admin/lessons/${l.id}/edit`} className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint">{t('blocks.editContent')}</Link>
-                  : <a href={`/admin/lessons/${l.id}/edit`} target="_blank" rel="noreferrer" className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint">{t('blocks.editContent')} ↗</a>}
+                <button className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint" onClick={() => setEditing(editing?.id === l.id ? null : { id: l.id, blocks: withKeys(l.blocks), creditHours: l.creditHours ?? '', keywords: l.keywords || '', keywordsAm: l.keywordsAm || '', subtitle: l.subtitle || '', subtitleAm: l.subtitleAm || '' })}>
+                  {t('blocks.editContent')}
+                </button>
                 <button className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint" onClick={() => addToNews(l)}>{t('admin.courses.addToNews')}</button>
                 {l.kind === 'blocks' && (
                   <button className="px-3 py-2 rounded-lg text-xs border border-line-strong text-mint disabled:opacity-60" disabled={exp.busy} onClick={() => sendTelegram(l)}>
                     {exp.busy && exp.id === l.id ? t('admin.export.sending') : t('admin.export.send')}
                   </button>
                 )}
-                <button className="px-3 py-2 rounded-lg text-xs border border-[#5A3A37] text-[#F2A7A0]" onClick={() => del(l.id)}>{t('common.remove')}</button>
+                <button className="px-3 py-2 rounded-lg text-xs border border-[#5A3A37] text-[#F2A7A0]" onClick={() => del(l)}>{t('common.remove')}</button>
               </span>
             </div>
             {exp.id === l.id && exp.text && <p className={`text-xs ${exp.error ? 'text-[#F2A7A0]' : 'text-mint'}`} role="status">{exp.text}</p>}
             {newsMsg.id === l.id && newsMsg.text && <p className={`text-xs ${newsMsg.error ? 'text-[#F2A7A0]' : 'text-mint'}`} role="status">{newsMsg.text}</p>}
+            {editing?.id === l.id && (
+              <div className="rounded-xl border border-line p-4 flex flex-col gap-3">
+                <div className="grid md:grid-cols-2 gap-3">
+                  <CreditHoursField value={editing.creditHours} credit={credit} onChange={(v) => setEditing({ ...editing, creditHours: v })} />
+                  <label className="label">{t('admin.courses.subtitle')}<input className="input" maxLength={300} value={editing.subtitle} onChange={(e) => setEditing({ ...editing, subtitle: e.target.value })} /></label>
+                  <label className="label">{t('admin.courses.subtitleAm')}<input className="input" lang="am" maxLength={300} value={editing.subtitleAm} onChange={(e) => setEditing({ ...editing, subtitleAm: e.target.value })} /></label>
+                  <label className="label">{t('admin.courses.keywords')}<input className="input" value={editing.keywords} onChange={(e) => setEditing({ ...editing, keywords: e.target.value })} /></label>
+                  <label className="label">{t('admin.courses.keywordsAm')}<input className="input" lang="am" value={editing.keywordsAm} onChange={(e) => setEditing({ ...editing, keywordsAm: e.target.value })} /></label>
+                  <p className="text-xs text-muted md:col-span-2">{t('admin.courses.keywordsHint')}</p>
+                </div>
+                <BlockEditor value={editing.blocks} onChange={(blocks) => setEditing({ ...editing, blocks })} />
+                <div className="flex gap-2">
+                  <button className="btn-primary py-2" onClick={saveBlocks}>{t('blocks.saveContent')}</button>
+                  <button className="btn-ghost py-2" onClick={() => setEditing(null)}>{t('blocks.cancel')}</button>
+                </div>
+              </div>
+            )}
           </li>
         ))}
         {course.lessons.length === 0 && <li className="text-sm text-muted">{t('admin.courses.noLessons')}</li>}
@@ -401,6 +472,7 @@ function Lessons({ course, onChange }) {
         </div>
 
         <div className="grid md:grid-cols-2 gap-4">
+          <CreditHoursField value={form.creditHours} credit={credit} onChange={(v) => setForm({ ...form, creditHours: v })} />
           <label className="label">{t('admin.courses.subtitle')}<input className="input" maxLength={300} value={form.subtitle} onChange={(e) => setForm({ ...form, subtitle: e.target.value })} /></label>
           <label className="label">{t('admin.courses.subtitleAm')}<input className="input" lang="am" maxLength={300} value={form.subtitleAm} onChange={(e) => setForm({ ...form, subtitleAm: e.target.value })} /></label>
           <label className="label">{t('admin.courses.keywords')}<input className="input" value={form.keywords} onChange={(e) => setForm({ ...form, keywords: e.target.value })} /></label>

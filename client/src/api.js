@@ -1,5 +1,6 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useState } from 'react';
 import { getLang, translate } from './i18n/index.jsx';
+import { getDeviceId } from './lib/device.js';
 
 const TOKEN_KEY = 'baa_token';
 // Empty for the website (same server). For the Android app: your Render URL, set in client/.env.android
@@ -10,6 +11,7 @@ function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStora
 
 export async function api(path, { method = 'GET', body, form } = {}) {
   const headers = { 'Accept-Language': getLang() };
+  headers['X-Device-Id'] = await getDeviceId();
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body && !form) headers['Content-Type'] = 'application/json';
@@ -24,7 +26,7 @@ export async function api(path, { method = 'GET', body, form } = {}) {
   const data = ct.includes('json') ? await res.json() : null;
   if (!res.ok) {
     const err = new Error(data?.error || `Error ${res.status}`);
-    err.status = res.status; err.code = data?.code;
+    err.status = res.status; err.code = data?.code; err.data = data;
     throw err;
   }
   return data;
@@ -59,11 +61,19 @@ export function AuthProvider({ children }) {
   const signIn = async (mode, payload) => {
     // Sign-ups that came through a shared referral link (?ref=CODE&c=CAMPAIGN) count toward the sharer's milestone
     const ref = mode === 'register' ? readReferral() : null;
-    const body = ref ? { ...payload, ref: ref.ref, refCampaign: ref.c } : payload;
+    const body = { ...(ref ? { ...payload, ref: ref.ref, refCampaign: ref.c } : payload), deviceId: await getDeviceId() };
     const { token, user: u } = await api(`/auth/${mode}`, { method: 'POST', body });
     if (ref) clearReferral();
     setToken(token);
     setUser(u);
+    return u;
+  };
+  /** Device lock: ask for an email code to move the account to this device (step 1), then confirm it (step 2). */
+  const requestDeviceChange = async ({ email, password }) =>
+    api('/auth/device/request-change', { method: 'POST', body: { email, password, deviceId: await getDeviceId() } });
+  const confirmDeviceChange = async ({ email, password, code }) => {
+    const { token, user: u } = await api('/auth/device/verify-change', { method: 'POST', body: { email, password, code, deviceId: await getDeviceId() } });
+    setToken(token); setUser(u);
     return u;
   };
   const signOut = () => {
@@ -71,7 +81,7 @@ export function AuthProvider({ children }) {
     // Forget this user's cached lessons/API answers on a shared device (images stay cached)
     try { navigator.serviceWorker?.controller?.postMessage({ type: 'clear-private' }); } catch { /* no SW */ }
   };
-  return createElement(AuthCtx.Provider, { value: { user, signIn, signOut, refresh, isAdmin: user?.role === 'admin' } }, children);
+  return createElement(AuthCtx.Provider, { value: { user, signIn, requestDeviceChange, confirmDeviceChange, signOut, refresh, isAdmin: user?.role === 'admin' } }, children);
 }
 
 export const etb = (n) => `${Number(n || 0).toLocaleString('en-US')} ${translate('common.birr')}`;

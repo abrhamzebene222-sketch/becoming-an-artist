@@ -54,7 +54,7 @@ router.get('/lesson/:lessonId', optionalAuth, ah(async (req, res) => {
     isPreview: !!lesson.isPreview,
     url: f.url || null,
     poster: f.poster || null,
-    blocks: (lesson.blocks || []).map((b) => ({
+    blocks: (lesson.blocks || []).filter((b) => b.type !== 'imageHint').map((b) => ({
       id: String(b._id),
       type: b.type,
       text: b.text || '',

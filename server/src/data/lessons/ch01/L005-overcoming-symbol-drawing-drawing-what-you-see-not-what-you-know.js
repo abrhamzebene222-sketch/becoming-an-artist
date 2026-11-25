@@ -6,6 +6,7 @@ export default {
   course: 'drawing-fundamentals--looking-and-critique--perception-and-observation--seeing-like-an-artist',
   title: "Overcoming Symbol Drawing: Drawing What You See, Not What You Know",
   titleAm: "Overcoming የምልክት ስዕል: ስዕል ምን You ማየት, ያል ምን You Know",
+  creditHours: 1.5,
   blocks: [
       {
         "type": "heading",

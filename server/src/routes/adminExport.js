@@ -22,7 +22,7 @@ router.post('/lessons/:id/export', ah(async (req, res) => {
   const cfg = await botConfig();
   if (!cfg.token || !cfg.adminChatId) return fail(req, res, 400, 'exportBotMissing');
 
-  const blocks = lesson.blocks || [];
+  const blocks = (lesson.blocks || []).filter((b) => b.type !== 'imageHint'); // admin-only hints never go into the export
   const { code, course, chain } = await lessonCode(lesson);
   const images = await loadImages(blocks);
   const ctx = { lesson, course, chain, code, blocks, images };

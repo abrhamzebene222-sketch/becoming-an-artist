@@ -8,7 +8,10 @@ const ref = (name, required = false) => ({ type: Schema.Types.ObjectId, ref: nam
 const toJSON = {
   virtuals: true,
   versionKey: false,
-  transform: (_doc, ret) => { ret.id = String(ret._id); delete ret._id; delete ret.passwordHash; return ret; },
+  transform: (_doc, ret) => { ret.id = String(ret._id); delete ret._id; delete ret.passwordHash;
+    for (const k of ['deviceHash', 'pendingDeviceHash', 'deviceOtpHash', 'deviceOtpExpires', 'deviceOtpAttempts', 'deviceOtpSentAt']) delete ret[k];
+    return ret;
+  },
 };
 const opts = (extra = {}) => ({ timestamps: true, toJSON, toObject: toJSON, ...extra });
 
@@ -29,6 +32,16 @@ const UserSchema = new Schema({
   telegramLinkExpires: Date,
   referralCode: { type: String, unique: true, sparse: true },
   creditEtb: { type: Number, default: 0, min: 0 },
+  // Device lock (students): hash of the one phone/browser this account is tied to
+  deviceHash: { type: String, default: '' },
+  deviceBoundAt: Date,
+  deviceChangedAt: Date,                 // last time the student moved the account to a new device (30-day limit)
+  tokenVersion: { type: Number, default: 0 }, // +1 revokes every login token issued before
+  pendingDeviceHash: { type: String, default: '' },
+  deviceOtpHash: { type: String, default: '' },
+  deviceOtpExpires: Date,
+  deviceOtpAttempts: { type: Number, default: 0 },
+  deviceOtpSentAt: Date,
 }, opts());
 UserSchema.virtual('isAdmin').get(function isAdmin() { return String(this.role).toLowerCase() === 'admin'; });
 export const User = model('User', UserSchema);
@@ -68,6 +81,8 @@ export const Course = model('Course', new Schema({
   slug: { type: String, required: true, unique: true },
   summary: String,
   summaryAm: String,
+  keywords: { type: String, default: '' },     // search.js + Admin › Courses already use these
+  keywordsAm: { type: String, default: '' },
   learningOutcomes: String,
   deliverables: String,
   evaluationCriteria: { type: [CriterionSchema], default: [] },
@@ -82,7 +97,8 @@ export const Course = model('Course', new Schema({
 // Modular lesson content: alternating text boxes, images and YouTube embeds, in the admin's order.
 const BlockSchema = new Schema({
   // heading = section title · step = numbered procedure step (text + optional image) · callout = tip / warning box
-  type: { type: String, enum: ['text', 'image', 'youtube', 'heading', 'step', 'callout'], required: true },
+  type: { type: String, enum: ['text', 'image', 'youtube', 'heading', 'step', 'callout', 'imageHint'], required: true },
+  // imageHint = admin-only "add image here" recommendation (text/textAm describe the picture). Never sent to students or exports.
   text: String,
   textAm: String,
   image: MediaSchema,        // image blocks, and the optional picture of a step
@@ -101,6 +117,13 @@ export const Lesson = model('Lesson', new Schema({
   // to their place in the tree by this id; lessons created in the admin panel simply have none.
   slot: { type: String, trim: true, index: true, sparse: true },
   kind: { type: String, enum: ['video', 'pdf', 'blocks'], required: true },
+  // CREDIT HOURS — the size of this lesson. Price = creditHours × the credit-hour rate set in Admin › Settings.
+  // Theory lessons are smaller (e.g. 0.5–1), practical lessons bigger (e.g. 1.5–3). Empty = Settings › default credit hours.
+  creditHours: { type: Number, min: 0, max: 10, default: null },
+  subtitle: { type: String, default: '' },
+  subtitleAm: { type: String, default: '' },
+  keywords: { type: String, default: '' },
+  keywordsAm: { type: String, default: '' },
   cloudPublicId: { type: String, required: needsFile },
   cloudResourceType: { type: String, enum: ['video', 'image'], required: needsFile }, // PDFs are "image" in Cloudinary
   cloudDeliveryType: { type: String, default: 'authenticated' },                     // authenticated = private

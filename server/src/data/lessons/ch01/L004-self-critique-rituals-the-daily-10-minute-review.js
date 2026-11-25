@@ -6,6 +6,7 @@ export default {
   course: 'drawing-fundamentals--looking-and-critique--learning-to-see--looking-and-critique-analyzing-a-drawing',
   title: "Self-Critique Rituals: The Daily 10-Minute Review",
   titleAm: "ራስን መግምገም ልማዶች: የዕለቱ የ10 ደቂቃ ግምገማ",
+  creditHours: 0.5,
   blocks: [
       {
         "type": "heading",

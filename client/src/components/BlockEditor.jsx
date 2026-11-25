@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useI18n } from '../i18n/index.jsx';
 import { youtubeId, youtubeThumb } from '../lib/youtube.js';
 import ImageUploader from './ImageUploader.jsx';
@@ -23,19 +23,11 @@ const NEW_FIELDS = {
   callout: { variant: 'tip', text: '', textAm: '' },
   image: { image: null, caption: '' },
   youtube: { youtubeUrl: '', caption: '' },
+  imageHint: { text: '', textAm: '' },
 };
 const newBlock = (type) => ({ _k: key(), type, ...NEW_FIELDS[type] });
 // Order of the "add" buttons; the label key is blocks.add<Name>
-const ADD_TYPES = [['text', 'Text', 'text'], ['heading', 'Heading', 'text'], ['step', 'Step', 'check'], ['image', 'Image', 'image'], ['youtube', 'Youtube', 'youtube'], ['callout', 'Callout', 'bell']];
-
-/** Text box that grows with its text (no inner scrolling): the whole text is always visible. */
-function AutoText({ className = '', value, ...rest }) {
-  const ref = useRef(null);
-  const fit = () => { const el = ref.current; if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px`; } };
-  useLayoutEffect(fit, [value]);
-  useLayoutEffect(() => { window.addEventListener('resize', fit); return () => window.removeEventListener('resize', fit); }, []);
-  return <textarea ref={ref} rows={1} className={`${className} resize-none overflow-hidden`} value={value} {...rest} />;
-}
+const ADD_TYPES = [['text', 'Text', 'text'], ['heading', 'Heading', 'text'], ['step', 'Step', 'check'], ['image', 'Image', 'image'], ['imageHint', 'ImageHint', 'image'], ['youtube', 'Youtube', 'youtube'], ['callout', 'Callout', 'bell']];
 
 /**
  * Modular lesson builder: alternating Text boxes, Images and YouTube videos in any order.
@@ -53,7 +45,7 @@ export default function BlockEditor({ value, onChange }) {
     onChange(next);
   };
   const add = (type) => onChange([...blocks, newBlock(type)]);
-  const icon = { text: 'text', image: 'image', youtube: 'youtube', heading: 'text', step: 'check', callout: 'bell' };
+  const icon = { text: 'text', imageHint: 'image', image: 'image', youtube: 'youtube', heading: 'text', step: 'check', callout: 'bell' };
   // Step numbers: count steps, restart after each heading
   const stepNo = {};
   let counter = 0;
@@ -94,7 +86,7 @@ export default function BlockEditor({ value, onChange }) {
         return (
           <div key={b._k} className="flex flex-col gap-1">
           {i === 0 && <Inserter at={0} />}
-          <div className="rounded-xl border border-line-strong bg-ink p-3.5 flex flex-col gap-3">
+          <div className={`rounded-xl border p-3.5 flex flex-col gap-3 ${b.type === 'imageHint' ? 'border-cyan-400/70 bg-cyan-950/30' : 'border-line-strong bg-ink'}`}>
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 text-sm text-teal-soft"><Icon name={icon[b.type]} size={16} />{i + 1} · {b.type === 'step' ? t('blocks.stepNo', { n: stepNo[b._k] }) : t(`blocks.type.${b.type}`)}</span>
               <span className="flex gap-1">
@@ -111,9 +103,19 @@ export default function BlockEditor({ value, onChange }) {
             )}
             {b.type === 'text' && (
               <div className="grid md:grid-cols-2 gap-3">
-                <label className="label">{t('blocks.textEn')}<AutoText className="input min-h-28" value={b.text || ''} onChange={(e) => upd(i, { text: e.target.value })} /></label>
-                <label className="label">{t('blocks.textAm')}<AutoText className="input min-h-28" lang="am" value={b.textAm || ''} onChange={(e) => upd(i, { textAm: e.target.value })} /></label>
+                <label className="label">{t('blocks.textEn')}<textarea className="input min-h-28" value={b.text || ''} onChange={(e) => upd(i, { text: e.target.value })} /></label>
+                <label className="label">{t('blocks.textAm')}<textarea className="input min-h-28" lang="am" value={b.textAm || ''} onChange={(e) => upd(i, { textAm: e.target.value })} /></label>
               </div>
+            )}
+            {b.type === 'imageHint' && (
+              <>
+                <p className="text-xs italic text-cyan-300">{t('blocks.hintAdminOnly')}</p>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <label className="label text-cyan-300">{t('blocks.hintEn')}<textarea className="input min-h-20 italic !border-cyan-400/60 !text-cyan-200" value={b.text || ''} onChange={(e) => upd(i, { text: e.target.value })} /></label>
+                  <label className="label text-cyan-300">{t('blocks.hintAm')}<textarea className="input min-h-20 italic !border-cyan-400/60 !text-cyan-200" lang="am" value={b.textAm || ''} onChange={(e) => upd(i, { textAm: e.target.value })} /></label>
+                </div>
+                <button type="button" className="btn-ghost py-1.5 text-sm self-start" onClick={() => toImage(i, b.text || b.textAm || '')}><Icon name="image" size={15} />{t('blocks.hintToImage')}</button>
+              </>
             )}
             {b.type === 'heading' && (
               <div className="grid md:grid-cols-2 gap-3">
@@ -131,16 +133,16 @@ export default function BlockEditor({ value, onChange }) {
                   ))}
                 </div>
                 <div className="grid md:grid-cols-2 gap-3">
-                  <label className="label">{t('blocks.textEn')}<AutoText className="input min-h-20" value={b.text || ''} onChange={(e) => upd(i, { text: e.target.value })} /></label>
-                  <label className="label">{t('blocks.textAm')}<AutoText className="input min-h-20" lang="am" value={b.textAm || ''} onChange={(e) => upd(i, { textAm: e.target.value })} /></label>
+                  <label className="label">{t('blocks.textEn')}<textarea className="input min-h-20" value={b.text || ''} onChange={(e) => upd(i, { text: e.target.value })} /></label>
+                  <label className="label">{t('blocks.textAm')}<textarea className="input min-h-20" lang="am" value={b.textAm || ''} onChange={(e) => upd(i, { textAm: e.target.value })} /></label>
                 </div>
               </>
             )}
             {b.type === 'step' && (
               <>
                 <div className="grid md:grid-cols-2 gap-3">
-                  <label className="label">{t('blocks.textEn')}<AutoText className="input min-h-24" value={b.text || ''} onChange={(e) => upd(i, { text: e.target.value })} /></label>
-                  <label className="label">{t('blocks.textAm')}<AutoText className="input min-h-24" lang="am" value={b.textAm || ''} onChange={(e) => upd(i, { textAm: e.target.value })} /></label>
+                  <label className="label">{t('blocks.textEn')}<textarea className="input min-h-24" value={b.text || ''} onChange={(e) => upd(i, { text: e.target.value })} /></label>
+                  <label className="label">{t('blocks.textAm')}<textarea className="input min-h-24" lang="am" value={b.textAm || ''} onChange={(e) => upd(i, { textAm: e.target.value })} /></label>
                 </div>
                 {b.image || b._img ? (
                   <>

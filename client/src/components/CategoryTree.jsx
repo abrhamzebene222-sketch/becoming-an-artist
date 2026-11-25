@@ -37,7 +37,7 @@ function Node({ node, depth, expanded, onToggle, selected, onSelectGroup, onSele
           <button type="button" onClick={() => onSelectGroup(node)} className="min-w-0 flex items-center gap-2 py-1.5 text-left flex-1">
             <Icon name="folder" size={15} className={depth === 0 ? 'text-teal-soft shrink-0' : 'text-muted shrink-0'} />
             <span className={`truncate text-xs sm:text-sm ${depth === 0 ? 'font-semibold' : ''}`}>{name}</span>
-            {node.priceEtb > 0 && !node.isFree && <span className="text-[10px] text-teal-soft shrink-0">{node.priceEtb}</span>}
+            {(node.shownPriceEtb ?? node.priceEtb) > 0 && !node.isFree && <span className="text-[10px] text-teal-soft shrink-0">{node.shownPriceEtb ?? node.priceEtb}</span>}
             {node.isFree && <span className="text-[10px] text-teal-soft shrink-0">{t('common.free')}</span>}
           </button>
         </div>

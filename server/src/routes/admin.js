@@ -1,6 +1,7 @@
 // Instructor / Admin API — every route requires role "admin" (read live from MongoDB).
 import { Router } from 'express';
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 import {
   User, Category, Course, Lesson, Enrollment, GroupEnrollment, Subscription, Payment, Booking, CourseRequest, CreditTransaction,
   TeacherApplication, Notification, ContactInfo, SubmissionLink, RewardTicket, Assignment, SelfEval, SelfEvalPurchase, SELFEVAL_DEFAULT_PRICE,
@@ -10,6 +11,7 @@ import { notifyUser, notifyAllStudents } from '../notify.js';
 import { fail } from '../i18n.js';
 import {
   ah, pricing, getSetting, setSetting, slugify, cleanTiers, DEFAULT_TIERS, youtubeId,
+  getPrices, creditHoursInput, DEFAULT_CREDIT_HOURS,
 } from '../lib.js';
 import {
   signUpload, findAsset, isConfigured, receiptUrl, resolveAccount, accountFor, syncMedia, uploadImage,
@@ -23,6 +25,15 @@ const router = Router();
 router.use((req, res, next) => { if (req.method !== 'GET') res.on('finish', invalidateSearch); next(); });
 router.use(requireAdmin);
 const validId = (id) => mongoose.isValidObjectId(id);
+
+// Destructive deletes (group, course, lesson) need the admin's own sign-in password in the request body ({ password }).
+const confirmPassword = ah(async (req, res, next) => {
+  const password = req.body?.password;
+  if (!password || typeof password !== 'string') return fail(req, res, 400, 'passwordRequired');
+  const me = await User.findById(req.user.id, 'passwordHash').lean().catch(() => null);
+  if (!me || !(await bcrypt.compare(password, me.passwordHash))) return fail(req, res, 403, 'badPassword');
+  next();
+});
 
 // ---------- Overview ----------
 router.get('/overview', ah(async (_req, res) => res.json({
@@ -40,7 +51,23 @@ router.get('/overview', ah(async (_req, res) => res.json({
 router.get('/users', ah(async (req, res) => {
   const q = String(req.query.q || '').trim();
   const filter = q ? { $or: [{ name: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }, { email: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }] } : {};
-  res.json(await User.find(filter).sort({ createdAt: -1 }).limit(200));
+  const users = await User.find(filter).sort({ createdAt: -1 }).limit(200);
+  res.json(users.map((u) => ({ ...u.toJSON(), deviceBound: !!u.deviceHash, deviceChangedAt: u.deviceChangedAt || null })));
+}));
+
+// Lost/stolen phone: unlink the old device. The student's NEXT sign-in (on the new phone) links the new one.
+// Credits and purchases stay on the account; every old login token stops working at once.
+router.post('/users/:id/reset-device', ah(async (req, res) => {
+  if (!validId(req.params.id)) return fail(req, res, 404, 'notFound');
+  const user = await User.findById(req.params.id).lean();
+  if (!user) return fail(req, res, 404, 'notFound');
+  if (String(user.role || '').toLowerCase() === 'admin') return fail(req, res, 400, 'adminNoDevice');
+  await User.updateOne({ _id: user._id }, {
+    $set: { deviceHash: '', pendingDeviceHash: '', deviceOtpHash: '', deviceOtpAttempts: 0 },
+    $unset: { deviceBoundAt: 1, deviceChangedAt: 1, deviceOtpExpires: 1, deviceOtpSentAt: 1 },
+    $inc: { tokenVersion: 1 },
+  });
+  res.json({ ok: true });
 }));
 
 router.patch('/users/:id/role', ah(async (req, res) => {
@@ -177,17 +204,29 @@ router.patch('/teacher-applications/:id', ah(async (req, res) => {
 // ---------- Curriculum (infinitely nested groups, File-Explorer tree in the admin) ----------
 // Returns a FLAT list (each category has `parent`) — the admin UI builds the tree, so any depth works.
 router.get('/curriculum', ah(async (_req, res) => {
-  const [cats, courses, lessons] = await Promise.all([
+  const [cats, courses, lessons, prices] = await Promise.all([
     Category.find().sort({ sortOrder: 1, createdAt: 1 }),
     Course.find().sort({ sortOrder: 1, createdAt: 1 }),
     Lesson.find().sort({ sortOrder: 1, createdAt: 1 }),
+    getPrices(),
   ]);
+  // credit-hour prices (all 0 until the rate is set in Settings): shown read-only next to every group, course and lesson
+  const off = { price: 0, hours: 0, lessons: 0 };
   res.json(cats.map((cat) => ({
     ...cat.toJSON(),
     parent: cat.parent ? String(cat.parent) : null,
+    creditPriceEtb: (prices.group.get(String(cat._id)) || off).price,
+    creditHours: (prices.group.get(String(cat._id)) || off).hours,
+    shownPriceEtb: prices.cfg.active ? (prices.group.get(String(cat._id)) || off).price : (cat.isFree ? 0 : cat.priceEtb || 0),
     courses: courses.filter((c) => String(c.category) === String(cat._id)).map((c) => ({
       ...c.toJSON(), category: String(c.category), submissionLink: c.submissionLink ? String(c.submissionLink) : '',
-      lessons: lessons.filter((l) => String(l.course) === String(c._id)),
+      creditPriceEtb: (prices.course.get(String(c._id)) || off).price,
+      creditHoursTotal: (prices.course.get(String(c._id)) || off).hours,
+      lessons: lessons.filter((l) => String(l.course) === String(c._id)).map((l) => ({
+        ...l.toJSON(),
+        creditPriceEtb: prices.lesson.get(String(l._id))?.price ?? 0,        // 0 = empty lesson, not sold yet
+        creditHoursUsed: prices.lesson.get(String(l._id))?.hours ?? null,    // what the price is calculated from
+      })),
     })),
   })));
 }));
@@ -248,7 +287,7 @@ router.post('/categories/reorder', ah(async (req, res) => {
 }));
 
 // Deletes the group, ALL its sub-groups, their courses and lessons, and their uploaded images
-router.delete('/categories/:id', ah(async (req, res) => {
+router.delete('/categories/:id', confirmPassword, ah(async (req, res) => {
   if (!validId(req.params.id)) return fail(req, res, 404, 'groupNotFound');
   const ids = await descendantIds(req.params.id);
   const cats = await Category.find({ _id: { $in: ids } });
@@ -322,7 +361,7 @@ router.put('/courses/:id', ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
-router.delete('/courses/:id', ah(async (req, res) => {
+router.delete('/courses/:id', confirmPassword, ah(async (req, res) => {
   const lessons = await Lesson.find({ course: req.params.id }, 'blocks');
   await syncMedia(lessons.flatMap((l) => l.blocks.filter((x) => x.image?.publicId).map((x) => x.image.toObject())), []);
   await Lesson.deleteMany({ course: req.params.id });
@@ -367,6 +406,11 @@ function cleanBlocks(list) {
       const textAm = String(b.textAm || '').slice(0, 5000);
       return text.trim() || textAm.trim() ? { type: 'callout', variant: b.variant === 'warning' ? 'warning' : 'tip', text, textAm } : null;
     }
+    if (b.type === 'imageHint') { // admin-only picture recommendation
+      const text = String(b.text || '').slice(0, 1000);
+      const textAm = String(b.textAm || '').slice(0, 1000);
+      return text.trim() || textAm.trim() ? { type: 'imageHint', text, textAm } : null;
+    }
     if (b.type === 'youtube') {
       const id = youtubeId(b.youtubeUrl);
       return id ? { type: 'youtube', youtubeUrl: `https://www.youtube.com/watch?v=${id}`, caption: String(b.caption || '').slice(0, 500) } : null;
@@ -380,8 +424,10 @@ const blockImages = (blocks) => blocks.filter((b) => b.image?.publicId).map((b) 
 router.post('/lessons', ah(async (req, res) => {
   const { course, title, publicId, kind, isPreview, account } = req.body || {};
   if (!validId(course) || !title?.trim() || !['video', 'pdf', 'blocks'].includes(kind)) return fail(req, res, 400, 'lessonFields');
+  const hrs = creditHoursInput(req.body.creditHours);
+  if (hrs.error) return fail(req, res, 400, hrs.error);
   const last = await Lesson.findOne({ course }).sort({ sortOrder: -1 });
-  const base = { course, title: title.trim(), keywords: String(req.body.keywords || '').slice(0, 500), keywordsAm: String(req.body.keywordsAm || '').slice(0, 500), subtitle: String(req.body.subtitle || '').slice(0, 300), subtitleAm: String(req.body.subtitleAm || '').slice(0, 300), kind, isPreview: !!isPreview, sortOrder: (last?.sortOrder ?? 0) + 1 };
+  const base = { ...(hrs.value != null ? { creditHours: hrs.value } : {}), course, title: title.trim(), keywords: String(req.body.keywords || '').slice(0, 500), keywordsAm: String(req.body.keywordsAm || '').slice(0, 500), subtitle: String(req.body.subtitle || '').slice(0, 300), subtitleAm: String(req.body.subtitleAm || '').slice(0, 300), kind, isPreview: !!isPreview, sortOrder: (last?.sortOrder ?? 0) + 1 };
 
   if (kind === 'blocks') {
     const blocks = cleanBlocks(req.body.blocks);
@@ -413,6 +459,9 @@ router.put('/lessons/:id', ah(async (req, res) => {
   if (req.body.keywordsAm !== undefined) lesson.keywordsAm = String(req.body.keywordsAm || '').slice(0, 500);
   if (req.body.subtitle !== undefined) lesson.subtitle = String(req.body.subtitle || '').slice(0, 300);
   if (req.body.subtitleAm !== undefined) lesson.subtitleAm = String(req.body.subtitleAm || '').slice(0, 300);
+  const hrs = creditHoursInput(req.body.creditHours);
+  if (hrs.error) return fail(req, res, 400, hrs.error);
+  if (!hrs.skip) lesson.creditHours = hrs.value;                  // null = use the default credit hours
   if (isPreview !== undefined) lesson.isPreview = !!isPreview;
   if (sortOrder != null) lesson.sortOrder = Number(sortOrder) || 0;
   let before = [];
@@ -503,7 +552,7 @@ router.delete('/lessons/:lessonId/self-eval', ah(async (req, res) => {
 }));
 
 // Removes the lesson; its block images are deleted. Video/PDF files stay in your Cloudinary Media Library.
-router.delete('/lessons/:id', ah(async (req, res) => {
+router.delete('/lessons/:id', confirmPassword, ah(async (req, res) => {
   const lesson = await Lesson.findById(req.params.id);
   if (lesson) {
     await syncMedia(blockImages(lesson.blocks), []);
@@ -514,12 +563,15 @@ router.delete('/lessons/:id', ah(async (req, res) => {
 
 // ---------- Settings, contacts, submission links ----------
 const SETTING_KEYS = ['subscriptionDiscountPercent', 'subscriptionFixedPriceEtb', 'sessionPriceOnlineEtb', 'sessionPriceInPersonEtb',
+  'creditHourRateEtb', 'defaultCreditHours',
   'cbeAccountName', 'cbeAccountNumber', 'telebirrName', 'telebirrNumber'];
-const NUMERIC = new Set(['subscriptionDiscountPercent', 'subscriptionFixedPriceEtb', 'sessionPriceOnlineEtb', 'sessionPriceInPersonEtb']);
+const NUMERIC = new Set(['subscriptionDiscountPercent', 'subscriptionFixedPriceEtb', 'sessionPriceOnlineEtb', 'sessionPriceInPersonEtb',
+  'creditHourRateEtb', 'defaultCreditHours']);
+const SETTING_DEFAULTS = { defaultCreditHours: DEFAULT_CREDIT_HOURS };   // shown when the admin never set it
 
 router.get('/settings', ah(async (_req, res) => {
   const settings = {};
-  for (const k of SETTING_KEYS) settings[k] = await getSetting(k, NUMERIC.has(k) ? 0 : '');
+  for (const k of SETTING_KEYS) settings[k] = await getSetting(k, SETTING_DEFAULTS[k] ?? (NUMERIC.has(k) ? 0 : ''));
   settings.subscriptionTiers = cleanTiers(await getSetting('subscriptionTiers', DEFAULT_TIERS));
   res.json({
     settings,
@@ -531,7 +583,7 @@ router.get('/settings', ah(async (_req, res) => {
 
 router.put('/settings', ah(async (req, res) => {
   for (const k of SETTING_KEYS) {
-    if (k in (req.body || {})) await setSetting(k, NUMERIC.has(k) ? Number(req.body[k]) || 0 : String(req.body[k] ?? ''));
+    if (k in (req.body || {})) await setSetting(k, NUMERIC.has(k) ? Math.max(0, Number(req.body[k]) || 0) : String(req.body[k] ?? ''));
   }
   if (Array.isArray(req.body?.subscriptionTiers)) await setSetting('subscriptionTiers', cleanTiers(req.body.subscriptionTiers));
   res.json({ ok: true, pricing: await pricing() });

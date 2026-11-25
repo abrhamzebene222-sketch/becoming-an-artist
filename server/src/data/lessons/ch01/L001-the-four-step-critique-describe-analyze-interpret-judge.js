@@ -6,6 +6,7 @@ export default {
   course: 'drawing-fundamentals--looking-and-critique--learning-to-see--looking-and-critique-analyzing-a-drawing',
   title: "The Four-Step Critique: Describe, Analyze, Interpret, Judge",
   titleAm: "አራት-ደረጃ ግምገማ: መግለጽ, መተንተን, መተርጎም, መፍረድ",
+  creditHours: 1,
   blocks: [
       {
         "type": "heading",

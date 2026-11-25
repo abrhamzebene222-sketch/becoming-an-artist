@@ -4,10 +4,12 @@ import rateLimit from 'express-rate-limit';
 import {
   Category, Course, Lesson, SubmissionLink, ContactInfo, Promo, NewsItem,
 } from '../models/index.js';
+import { serializeNews } from '../newsLib.js';
 import { optionalAuth } from '../auth.js';
 import { fail, msg } from '../i18n.js';
 import {
-  ah, pricing, getSetting, hasCourseAccess, hasGroupAccess, groupSubscriptionQuote, groupPrice,
+  ah, pricing, getSetting, hasCourseAccess, hasGroupAccess, groupSubscriptionQuote,
+  getPrices, coursePriceOf, groupPriceOf, lessonBaseOf, lessonHours, courseTokenInfo,
 } from '../lib.js';
 import { breadcrumb } from '../tree.js';
 import { botConfig } from '../telegram.js';
@@ -37,11 +39,12 @@ async function lessonCounts() {
  */
 router.get('/catalog', ah(async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 80);
-  const [cats, courses, counts, matched] = await Promise.all([
+  const [cats, courses, counts, matched, prices] = await Promise.all([
     Category.find().sort({ sortOrder: 1, createdAt: 1 }).lean(),
     Course.find({ isPublished: true }).sort({ sortOrder: 1, createdAt: 1 }),
     lessonCounts(),
     q ? matchingCourseIds(q) : null, // courses found by their own text/keywords OR through one of their lessons
+    getPrices(),                     // credit-hour prices (computed from the WHOLE tree, so a search never changes a price)
   ]);
   const ids = new Set(cats.map((c) => String(c._id)));
   const nodes = new Map(cats.map((c) => {
@@ -52,7 +55,11 @@ router.get('/catalog', ah(async (req, res) => {
     const node = nodes.get(String(c.category));
     if (!node) continue;
     const row = counts[String(c._id)];
-    node.ownCourses.push({ ...c.toJSON(), category: node.id, lessonCount: row?.n || 0, previewCount: row?.previews || 0 });
+    node.ownCourses.push({
+      ...c.toJSON(), category: node.id, lessonCount: row?.n || 0, previewCount: row?.previews || 0,
+      priceEtb: coursePriceOf(prices, c),                              // credit-hour price once the rate is set in Admin › Settings
+      creditHours: prices.cfg.active ? (prices.course.get(String(c._id))?.hours || 0) : undefined,
+    });
   }
   const roots = [];
   for (const n of nodes.values()) (n.parent ? nodes.get(n.parent).children : roots).push(n);
@@ -65,7 +72,8 @@ router.get('/catalog', ah(async (req, res) => {
     n.children = n.children.map((ch) => walk(ch, `${trail} ${selfText}`)).filter(Boolean);
     n.courses = [...n.ownCourses, ...n.children.flatMap((ch) => ch.courses)];
     n.lessonCount = n.courses.reduce((s, c) => s + (c.isFree ? 0 : c.lessonCount), 0);
-    n.groupPriceEtb = groupPrice(n);
+    n.groupPriceEtb = groupPriceOf(prices, n);
+    if (prices.cfg.active) { n.priceEtb = n.groupPriceEtb; n.creditHours = prices.group.get(n.id)?.hours || 0; }
     if (q && !hit && !n.courses.length) return null;
     return n;
   };
@@ -75,29 +83,45 @@ router.get('/catalog', ah(async (req, res) => {
 router.get('/courses/:slug', optionalAuth, ah(async (req, res) => {
   const course = await Course.findOne({ slug: req.params.slug, isPublished: true });
   if (!course) return fail(req, res, 404, 'courseNotFound');
-  const [lessons, link, access, crumbs] = await Promise.all([
-    Lesson.find({ course: course._id }, 'title kind isPreview durationSec sortOrder blocks.type').sort({ sortOrder: 1, createdAt: 1 }),
+  const [lessons, link, access, crumbs, prices] = await Promise.all([
+    Lesson.find({ course: course._id }, 'title titleAm subtitle subtitleAm kind isPreview durationSec sortOrder creditHours blocks.type').sort({ sortOrder: 1, createdAt: 1 }),
     course.submissionLink ? SubmissionLink.findById(course.submissionLink) : SubmissionLink.findOne({ isDefault: true }),
     hasCourseAccess(req.user, course),
     breadcrumb(course.category),
+    getPrices(),
   ]);
+  const price = coursePriceOf(prices, course);
+  // tokens already spent on single lessons of this course + which lessons the student unlocked one by one
+  const info = await courseTokenInfo(req.user?.id, course, lessons.length, prices);
   // Groups (sub-group → major group) the student can buy as a whole to unlock this course
   const groupOffers = [];
   for (const g of crumbs.slice().reverse()) {
-    if (g.priceEtb > 0 && !g.isFree) groupOffers.push({ ...g, owned: await hasGroupAccess(req.user, g.id) });
+    const gPrice = groupPriceOf(prices, g);
+    if (gPrice > 0 && !g.isFree) groupOffers.push({ ...g, priceEtb: gPrice, owned: await hasGroupAccess(req.user, g.id) });
   }
   const json = course.toJSON();
   const major = crumbs[0] || null;
   res.json({
     ...json,
+    priceEtb: price,
+    creditHours: prices.cfg.active ? (prices.course.get(String(course._id))?.hours || 0) : undefined,
+    tokenRemaining: info.courseRemaining,           // what unlocking the whole course with tokens costs this student now
     category: crumbs.length ? { id: crumbs.at(-1).id, title: crumbs.at(-1).title, titleAm: crumbs.at(-1).titleAm } : null,
     breadcrumb: crumbs,
     majorGroup: major,
     groupOffers,
-    lessons: lessons.map((l) => ({
-      id: l.id, title: l.title, titleAm: l.titleAm || '', kind: l.kind, isPreview: l.isPreview, durationSec: l.durationSec, sortOrder: l.sortOrder,
-      blockTypes: [...new Set(l.blocks.map((b) => b.type))],
-    })),
+    lessons: lessons.map((l) => {
+      const unlocked = info.unlockedIds.has(l.id);
+      const base = lessonBaseOf(prices, l.id, price, lessons.length);
+      return {
+        id: l.id, title: l.title, titleAm: l.titleAm || '', subtitle: l.subtitle || '', subtitleAm: l.subtitleAm || '',
+        kind: l.kind, isPreview: l.isPreview, durationSec: l.durationSec, sortOrder: l.sortOrder,
+        blockTypes: [...new Set(l.blocks.map((b) => b.type))],
+        creditHours: lessonHours(l, prices.cfg),
+        unlocked,                                                                  // bought on its own with tokens
+        tokenPrice: !course.isFree && !l.isPreview && !unlocked ? Math.min(base, info.courseRemaining) : 0, // 0 = cannot be bought alone
+      };
+    }),
     hasPreview: lessons.some((l) => l.isPreview),
     submissionLink: access ? link : null,
     hasAccess: access,
@@ -127,17 +151,18 @@ router.post('/subscription/quote', ah(async (req, res) => {
 router.get('/promos', ah(async (_req, res) => {
   const list = await Promo.find({ isActive: true }).sort({ board: 1, slot: 1 });
   const boards = { 1: [], 2: [], 3: [] };
-  for (const p of list) if (p.title || p.titleAm || p.image?.url) boards[p.board].push(p.toObject({ virtuals: true }));
-  // Board 1 (Daily news & new courses): the admin's own units (new-course announcements) come first, then the latest
-  // items of the News feed. New news appears here automatically; "Read more" opens /news/:id. Course announcements
-  // are written only in the board units and never go into the News feed.
-  const latestNews = await NewsItem.find({ isActive: true }).sort({ createdAt: -1 }).limit(5).lean();
-  for (const n of latestNews) {
-    boards[1].push({
-      id: `news-${n._id}`, newsId: String(n._id), board: 1,
-      title: n.title, titleAm: n.titleAm || '', description: n.summary || '', descriptionAm: n.summaryAm || '',
-      image: n.image?.url ? { url: n.image.url, publicId: n.image.publicId, account: n.image.account || 'env', resourceType: 'image' } : null,
-    });
+  for (const p of list) if (p.title || p.titleAm || p.image?.url) boards[p.board].push(p);
+  // Board 1 shows the newest posts from the News menu (Admin > News). "Read more" opens /news/:id.
+  // If there is no active news yet, the hand-written units of board 1 are shown instead.
+  const latest = await NewsItem.find({ isActive: true }).sort({ createdAt: -1 }).limit(5).lean();
+  if (latest.length) {
+    const cut = (t, n) => { const x = String(t || '').trim(); return x.length > n ? `${x.slice(0, n).trimEnd()}…` : x; };
+    boards[1] = (await serializeNews(latest)).map((n) => ({
+      id: `news-${n.id}`, newsId: n.id,
+      title: n.title, titleAm: n.titleAm,
+      description: n.summary || cut(n.body, 160), descriptionAm: n.summaryAm || cut(n.bodyAm, 160),
+      image: n.image,
+    }));
   }
   const cfg = await botConfig();
   res.json({

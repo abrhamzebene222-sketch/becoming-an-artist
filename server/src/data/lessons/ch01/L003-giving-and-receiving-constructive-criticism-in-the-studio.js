@@ -6,6 +6,7 @@ export default {
   course: 'drawing-fundamentals--looking-and-critique--learning-to-see--looking-and-critique-analyzing-a-drawing',
   title: "Giving and Receiving Constructive Criticism in the Studio",
   titleAm: "መስጠት እና መቀበል ገንቢ ትችት ስቱዲዮ",
+  creditHours: 0.75,
   blocks: [
       {
         "type": "heading",

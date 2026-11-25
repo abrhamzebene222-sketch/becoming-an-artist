@@ -1,5 +1,5 @@
 // ─── Lesson content contract (v2) ────────────────────────────────────────────
-// Matches the revised app: SIX block types (text, heading, step, callout, image, youtube),
+// Matches the revised app: `creditHours` (lesson size → price) and SIX block types (text, heading, step, callout, image, youtube),
 // Lesson.titleAm in the schema, and the canonical YouTube URL the admin route stores.
 // One lesson = one file under src/data/lessons/. The slot id decides placement, never the folder.
 import fs from 'node:fs';
@@ -10,9 +10,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const SLOTS_FILE = path.resolve(here, '..', 'lesson-slots.json');
 export const LESSONS_DIR = path.join(here, 'data', 'lessons');
-export const BLOCK_TYPES = ['text', 'heading', 'step', 'callout', 'image', 'youtube'];
+export const BLOCK_TYPES = ['text', 'heading', 'step', 'callout', 'image', 'youtube', 'imageHint'];
 export const MAX_BLOCKS = 200;                 // same cap as the admin route
-export const LIMITS = { text: 20000, heading: 300, callout: 5000, caption: 500 };
+export const LIMITS = { text: 20000, heading: 300, callout: 5000, caption: 500, hint: 1000 };
+// Credit hours = how big the lesson is. Price = creditHours × the credit-hour rate (Admin › Settings).
+// Rough guide: theory 0.5–1 · mixed 1–2 · practical / studio 1.5–3 (more only for a very long exercise).
+export const CREDIT_HOURS = { min: 0.1, max: 10, warnAbove: 4 };
 
 let cache = null;
 export function slots() {
@@ -32,6 +35,20 @@ export function slugify(title) {
 export function youtubeId(url) {
   const m = String(url || '').match(/(?:youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
   return m ? m[1] : '';
+}
+
+/** → { value: number|null, error?: string, warning?: string }.  Missing = null (the app uses its default). */
+export function parseCreditHours(raw) {
+  if (raw === undefined || raw === null || raw === '') return { value: null };
+  const n = typeof raw === 'string' ? Number(raw.replace(',', '.')) : raw;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return { value: null, error: `\`creditHours\` must be a number like 1 or 1.5 (got ${JSON.stringify(raw)})` };
+  if (n < CREDIT_HOURS.min || n > CREDIT_HOURS.max) {
+    return { value: null, error: `\`creditHours\` must be between ${CREDIT_HOURS.min} and ${CREDIT_HOURS.max} (got ${n})` };
+  }
+  const value = Math.round(n * 100) / 100;
+  return value > CREDIT_HOURS.warnAbove
+    ? { value, warning: `creditHours ${value} is unusually large for one lesson — check it` }
+    : { value };
 }
 
 const str = (v) => String(v == null ? '' : v);
@@ -82,12 +99,16 @@ function normalizeOne(b, i, errs, warnings) {
     const image = media(b, errs, warnings, `${where} (image)`);
     return image ? { type: 'image', image, ...(caption ? { caption } : {}) } : null;
   }
+  if (type === 'imagehint') {
+    if (!isTextish(b.text) && !isTextish(b.textAm)) { errs.push(`${where} (imageHint): describe the picture in text or textAm`); return null; }
+    return { type: 'imageHint', text: clip(clean(b.text), LIMITS.hint), textAm: clip(clean(b.textAm), LIMITS.hint) };
+  }
   if (type === 'youtube') {
     const id = youtubeId(b.youtubeUrl || b.url || b.youtubeId);
     if (!id) { errs.push(`${where} (youtube): needs a real youtube.com / youtu.be link`); return null; }
     return { type: 'youtube', youtubeUrl: `https://www.youtube.com/watch?v=${id}`, ...(caption ? { caption } : {}) };
   }
-  errs.push(`${where}: unknown type "${b.type}" — use text, heading, step, callout, image or youtube`);
+  errs.push(`${where}: unknown type "${b.type}" — use text, heading, step, callout, image, youtube or imageHint`);
   return null;
 }
 
@@ -122,6 +143,11 @@ export function checkLesson(data, file = '') {
     }
   }
 
+  const credit = parseCreditHours(data.creditHours);
+  if (credit.error) errors.push(credit.error);
+  else if (credit.warning) warnings.push(credit.warning);
+  else if (credit.value === null) warnings.push('no `creditHours` — the lesson will use the default credit hours from Admin › Settings');
+
   const blocks = normalizeBlocks(data.blocks, errors, warnings);
   if (!blocks.length) warnings.push('no blocks — the lesson shows the "content coming soon" note');
   const stepCount = blocks.filter((b) => b.type === 'step').length;
@@ -134,6 +160,7 @@ export function checkLesson(data, file = '') {
     position: slotRow ? slotRow.index : undefined,
     title: slotRow ? slotRow.title : clean(data.title),
     titleAm: isTextish(data.titleAm) ? clean(data.titleAm) : (slotRow ? slotRow.titleAm : ''),
+    creditHours: credit.value,
     blocks,
     isPreview: data.isPreview === true,
   };

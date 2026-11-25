@@ -29,6 +29,7 @@ export default function Promos() {
       {[1, 2, 3].map((b) => (
         <section key={b} className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold flex items-center gap-2"><span aria-hidden="true" className="w-1.5 h-6 rounded-full bg-cyan-300" />{t(`promoAdmin.board${b}`)}</h2>
+          {b === 1 && <p className="text-sm text-muted max-w-2xl">{t('promoAdmin.board1Note')}</p>}
           <div className="grid xl:grid-cols-2 gap-4">
             {list.filter((p) => p.board === b).map((p) => {
               const f = (k) => ({ value: p[k] || '', onChange: (e) => upd(p.id, { [k]: e.target.value }) });

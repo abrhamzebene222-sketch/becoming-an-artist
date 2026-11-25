@@ -32,5 +32,14 @@ services:
         value: Artistabrham@gmail.com
       - key: ADMIN_PASSWORD
         sync: false
+      # ---- Device lock: email for the one-time code (Brevo recommended: free, no domain needed) ----
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM            # the sender address you verified in Brevo, e.g. yourname@gmail.com
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: Becoming an Artist
+      - key: DEVICE_LOCK          # on | off  (off = switch the one-device rule off)
+        value: "on"
       - key: PUBLIC_ORIGIN        # your Render URL, e.g. https://becoming-an-artist.onrender.com
         sync: false

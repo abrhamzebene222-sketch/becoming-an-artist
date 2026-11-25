@@ -20,11 +20,20 @@ export default {
   course: 'drawing-fundamentals--…',   // must match the slot's course slug exactly
   title: 'The Manifest Title',         // the app keeps the manifest title anyway
   titleAm: '…',                        // optional; correct it only if the translation is wrong
-  blocks: [ /* text | heading | step | callout | image | youtube */ ],
+  creditHours: 1.5,                    // lesson size → price (= creditHours × price per credit hour in Admin › Settings)
+  blocks: [ /* text | heading | step | callout | image | youtube | imageHint */ ],
 };
 ```
 
-## Six block types (revised app)
+## Credit hours
+
+`creditHours` decides what the lesson costs: **price = creditHours × the credit-hour rate** (Admin › Settings).
+Theory 0.5–1 · mixed 1–2 · practical 1.5–3. Allowed: 0.1 – 10. Missing → the validator warns and the app uses the
+default credit hours from Settings. A lesson with no content yet is not sold and adds nothing to a price.
+Re-importing (even without `--force`) fills in a missing `creditHours` on an existing lesson but never changes one you already set
+— change it later in Admin › Courses › the lesson.
+
+## Seven block types
 
 | type | fields | notes |
 |---|---|---|
@@ -34,6 +43,7 @@ export default {
 | `callout` | `text`, `textAm`, `variant: 'tip' \| 'warning'` | ≤5 000 chars |
 | `image` | `imageUrl` (+ `publicId`), `caption` | Cloudinary only |
 | `youtube` | `youtubeUrl`, `caption` | id extracted server-side |
+| `imageHint` | `text`, `textAm` | admin-only "add image here" slot (describes the picture to add); never shown to students or in exports |
 
 Images: upload in Admin › Courses first, copy both the URL and the public id.
 An image without `publicId` still displays, but the admin editor drops it if you later save that lesson.

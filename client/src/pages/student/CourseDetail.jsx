@@ -26,7 +26,8 @@ export default function CourseDetail() {
   if (course.error) return <p className="text-muted">{t('course.notFound')}</p>;
   if (!c) return <p className="text-muted">{t('common.loading')}</p>;
 
-  const canOpen = (l) => access || l.isPreview;
+  const canOpen = (l) => access || l.isPreview || l.unlocked;     // unlocked = bought on its own with tokens
+  const creditOn = !!pricing.data?.credit?.active;
 
   // Purchase options: this course, each group above it that has a price, monthly plans
   const offers = [
@@ -40,6 +41,8 @@ export default function CourseDetail() {
     }] : []),
   ];
   const selected = offers.find((o) => o.key === plan) || offers[0];
+  // unlocking the whole course with tokens costs the price minus tokens already spent on its single lessons (the server decides)
+  const tokenCost = selected?.purpose === 'course' ? (c.tokenRemaining ?? selected.price) : selected?.price;
 
   const redeem = async () => {
     setCreditMsg(null);
@@ -73,7 +76,7 @@ export default function CourseDetail() {
           <div className="card overflow-hidden">
             <div className="p-5 pb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">{t('course.lessonsTitle')}</h2>
-              <span className="text-sm text-muted">{t('common.lessons', { n: c.lessons.length })}</span>
+              <span className="text-sm text-muted">{t('common.lessons', { n: c.lessons.length })}{creditOn && c.creditHours > 0 ? ` · ${t('credit.totalHours', { n: c.creditHours })}` : ''}</span>
             </div>
             {!access && !c.isFree && !c.hasPreview && c.lessons.length > 0 && (
               <p className="mx-5 mb-3 rounded-xl border border-[#5A4A2A] bg-[#241E12] p-3.5 text-sm text-[#F2D98A] flex items-start gap-2" role="note">
@@ -85,6 +88,7 @@ export default function CourseDetail() {
             <ul>
               {c.lessons.map((l, i) => {
                 const open = canOpen(l);
+                const buyable = !open && !!user && l.tokenPrice > 0;     // locked, but can be unlocked alone with tokens → opens its own page
                 const icon = l.kind === 'pdf' ? 'file' : l.kind === 'video' ? 'play' : l.blockTypes?.includes('youtube') ? 'youtube' : 'text';
                 const inner = (
                   <>
@@ -92,13 +96,14 @@ export default function CourseDetail() {
                     <span className="flex-1 min-w-0 truncate">{i + 1} · {loc(l, 'title')}</span>
                     {l.durationSec ? <span className="text-xs text-muted-dim hidden sm:inline">{mins(l.durationSec)}</span> : null}
                     {!access && l.isPreview && <span className="rounded-full bg-teal text-[#0B1312] px-2 py-0.5 text-[11px] font-bold shrink-0">{t('detail.previewTag')}</span>}
-                    {!open && <span className="text-xs text-[#F2D98A] shrink-0">{t('detail.locked')}</span>}
+                    {creditOn && l.creditHours > 0 && <span className="text-xs text-muted-dim shrink-0 hidden sm:inline">{t('credit.hoursShort', { n: l.creditHours })}</span>}
+                    {!open && <span className="text-xs text-[#F2D98A] shrink-0">{buyable ? t('tokens.count', { n: l.tokenPrice.toLocaleString('en-US') }) : t('detail.locked')}</span>}
                     {open && <span aria-hidden="true" className="shrink-0 text-muted text-xl leading-none">›</span>}
                   </>
                 );
                 return (
                   <li key={l.id} className="border-t border-line">
-                    {open ? (
+                    {open || buyable ? (
                       <Link to={`/courses/${slug}/lessons/${l.id}`}
                         className="w-full flex items-center gap-3 px-5 py-3.5 text-left text-sm min-h-12 hover:bg-ink/60">{inner}</Link>
                     ) : (
@@ -168,7 +173,7 @@ export default function CourseDetail() {
                   <Link to="/subscribe" className="text-sm text-teal-soft self-start">{t('detail.planMonthly')} →</Link>
                 </fieldset>
               )}
-              {selected && !selected.monthly && credit >= selected.price && (
+              {selected && !selected.monthly && tokenCost > 0 && credit >= tokenCost && (
                 <button type="button" className="btn-ghost border-cyan-300/50" onClick={redeem}>
                   <Icon name="gift" />{t('detail.useCredit')} · {etb(credit)}
                 </button>

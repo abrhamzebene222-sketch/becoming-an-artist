@@ -8,7 +8,7 @@ import {
 import { requireAuth } from '../auth.js';
 import { fail } from '../i18n.js';
 import {
-  ah, hasCourseAccess, hasLessonAccess, hasGroupAccess, groupPrice, courseTokenInfo, spendTokens,
+  ah, hasCourseAccess, hasLessonAccess, hasGroupAccess, getPrices, groupPriceOf, courseTokenInfo, spendTokens,
 } from '../lib.js';
 import {
   botConfig, handleUpdate, createLinkUrl, ensureReferralCode, referralBotLink, referralWebLink, isBotReady,
@@ -104,7 +104,7 @@ router.post('/credits/redeem', requireAuth, ah(async (req, res) => {
     const cat = await Category.findById(id).lean();
     if (!cat) return fail(req, res, 404, 'groupNotFound');
     if (await hasGroupAccess(req.user, id)) return fail(req, res, 400, 'alreadyUnlocked');
-    price = groupPrice(cat);
+    price = groupPriceOf(await getPrices(), cat);
     if (!price) return fail(req, res, 400, 'noGroupPrice');
     entry = { reason: 'unlock_group', category: id };
     grant = async () => (await GroupEnrollment.updateOne({ user: uid, category: id },
@@ -123,8 +123,8 @@ router.post('/credits/redeem', requireAuth, ah(async (req, res) => {
     if (await hasCourseAccess(req.user, course)) return fail(req, res, 400, 'alreadyUnlocked');
     if (type === 'lesson') {
       if (await hasLessonAccess(req.user, lesson, course)) return fail(req, res, 400, 'alreadyUnlocked');
-      const info = await courseTokenInfo(uid, course, await Lesson.countDocuments({ course: course._id }));
-      price = info.lessonPrice;
+      const info = await courseTokenInfo(uid, course, await Lesson.countDocuments({ course: course._id }), null, id);
+      price = info.lessonPrice;               // creditHours × credit-hour rate (never more than what is still unpaid on the course)
       entry = { reason: 'unlock_lesson', lesson: id, course: course._id };
       grant = async () => (await LessonUnlock.updateOne({ user: uid, lesson: id },
         { $setOnInsert: { user: uid, lesson: id, course: course._id, paidEtb: price } }, { upsert: true })).upsertedCount === 1;

@@ -12,6 +12,11 @@ export default function Users() {
     try { await api(`/admin/users/${id}/role`, { method: 'PATCH', body: { role } }); list.reload(); } catch (e) { alert(e.message); }
   };
 
+  const resetDevice = async (id) => {
+    if (!window.confirm(t('admin.users.resetConfirm'))) return;
+    try { await api(`/admin/users/${id}/reset-device`, { method: 'POST' }); list.reload(); } catch (e) { alert(e.message); }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -22,10 +27,10 @@ export default function Users() {
       </div>
       <p className="text-sm text-muted-soft card p-4">{t('admin.users.tip')}</p>
       <div className="card overflow-x-auto">
-        <table className="w-full text-sm min-w-[640px]">
+        <table className="w-full text-sm min-w-[760px]">
           <thead><tr className="text-left text-xs uppercase tracking-wider text-muted">
             <th className="p-3 font-medium">{t('admin.users.name')}</th><th className="p-3 font-medium">{t('admin.users.email')}</th>
-            <th className="p-3 font-medium">{t('admin.users.joined')}</th><th className="p-3 font-medium">{t('admin.users.role')}</th><th className="p-3" />
+            <th className="p-3 font-medium">{t('admin.users.joined')}</th><th className="p-3 font-medium">{t('admin.users.role')}</th><th className="p-3 font-medium">{t('admin.users.device')}</th><th className="p-3" />
           </tr></thead>
           <tbody>
             {list.data?.map((u) => {
@@ -37,6 +42,11 @@ export default function Users() {
                   <td className="p-3 break-all">{u.email}</td>
                   <td className="p-3">{fmtDate(u.createdAt, false)}</td>
                   <td className="p-3"><span className={admin ? 'text-teal-soft font-semibold' : ''}>{t(`admin.users.roles.${admin ? 'admin' : 'student'}`)}</span></td>
+                  <td className="p-3">
+                    {admin ? '—' : u.deviceBound
+                      ? <span className="flex items-center gap-2">{t('admin.users.deviceLinked')} <button className="btn-ghost py-1 px-2 text-xs" onClick={() => resetDevice(u.id)}>{t('admin.users.resetDevice')}</button></span>
+                      : <span className="text-muted">{t('admin.users.deviceNone')}</span>}
+                  </td>
                   <td className="p-3 text-right">
                     {!self && (
                       <button className={admin ? 'btn-danger py-2' : 'btn-ghost py-2'} onClick={() => setRole(u.id, admin ? 'student' : 'admin')}>
