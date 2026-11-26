@@ -10,14 +10,16 @@ import mongoose from 'mongoose';
 import { SelfEval, SelfEvalPurchase, Lesson, Course, User } from '../models/index.js';
 import { requireAuth } from '../auth.js';
 import { fail } from '../i18n.js';
-import { ah, spendTokens, youtubeId, isAdmin } from '../lib.js';
+import { ah, spendTokens, youtubeId, isAdmin, creditConfig, selfEvalPriceOf } from '../lib.js';
 import { searchAll, isSearchable } from '../search.js';
+import { labelBases } from '../imageLabels.js';
 
 const router = Router();
 router.use(requireAuth);
 
 const MAX_BUY = 50;
-const price = (e) => Math.max(0, Math.round(Number(e.priceEtb) || 0));
+// effective token price: creditHours × credit-hour rate when the credit system is on, else the fixed price
+const price = (e, cfg) => selfEvalPriceOf(e, cfg);
 
 /** Search lessons; with no search text, list the lessons that already have a document. */
 router.get('/', ah(async (req, res) => {
@@ -25,6 +27,7 @@ router.get('/', ah(async (req, res) => {
   const uid = req.user.id;
   const me = await User.findById(uid, 'creditEtb').lean();
   const balance = me?.creditEtb || 0;
+  const cfg = await creditConfig();
   let rows = [];
 
   if (q) {
@@ -54,7 +57,7 @@ router.get('/', ah(async (req, res) => {
     balance,
     items: rows.map((r) => {
       const e = evalBy.get(r.lessonId);
-      return { ...r, evalId: e ? String(e._id) : '', priceEtb: e ? price(e) : 0, owned: !!e && owned.has(String(e._id)) };
+      return { ...r, evalId: e ? String(e._id) : '', priceEtb: e ? price(e, cfg) : 0, owned: !!e && owned.has(String(e._id)) };
     }),
   });
 }));
@@ -91,7 +94,8 @@ router.post('/buy', ah(async (req, res) => {
   const todo = evals.filter((e) => !have.has(String(e._id)));
   if (!todo.length) return fail(req, res, 400, 'alreadyUnlocked');
 
-  const total = todo.reduce((s, e) => s + price(e), 0);
+  const cfg = await creditConfig();
+  const total = todo.reduce((s, e) => s + price(e, cfg), 0);
   const me = await User.findById(uid, 'creditEtb').lean();
   if ((me?.creditEtb || 0) < total) return fail(req, res, 400, 'notEnoughCredit');
 
@@ -100,7 +104,7 @@ router.post('/buy', ah(async (req, res) => {
 
   let bought = 0; let spent = 0; let balance = me?.creditEtb || 0; let stopped = '';
   for (const e of todo) {
-    const p = price(e);
+    const p = price(e, cfg);
     const grant = async () => (await SelfEvalPurchase.updateOne({ user: uid, selfEval: e._id },
       { $setOnInsert: { user: uid, selfEval: e._id, lesson: e.lesson, paidEtb: p } }, { upsert: true })).upsertedCount === 1;
     if (p === 0) { if (await grant()) bought += 1; continue; }            // a document the admin made free
@@ -123,12 +127,14 @@ router.get('/:id', ah(async (req, res) => {
   }
   const lesson = await Lesson.findById(e.lesson, 'title titleAm course').lean();
   const course = lesson ? await Course.findById(lesson.course, 'title titleAm slug').lean() : null;
+  const labels = lesson ? await labelBases(lesson, { selfEval: true }) : { labelBase: '', labelBaseAm: '' };
   res.set('Cache-Control', 'private, no-cache'); // the service worker keeps its own offline copy
   res.json({
     id: String(e._id), lessonId: String(e.lesson),
     title: lesson?.title || '', titleAm: lesson?.titleAm || '',
     courseTitle: course?.title || '', courseTitleAm: course?.titleAm || '', courseSlug: course?.slug || '',
-    blocks: (e.blocks || []).map((b) => ({
+    labelBase: labels.labelBase, labelBaseAm: labels.labelBaseAm,
+    blocks: (e.blocks || []).filter((b) => b.type !== 'imageHint').map((b) => ({ // admin-only picture hints never reach students
       id: String(b._id), type: b.type, text: b.text || '', textAm: b.textAm || '', caption: b.caption || '',
       imageUrl: b.image?.url || '', variant: b.variant || '',
       youtubeId: b.type === 'youtube' ? youtubeId(b.youtubeUrl) : '',

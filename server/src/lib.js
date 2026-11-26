@@ -106,6 +106,16 @@ export const lessonHours = (l, cfg) => (Number(l?.creditHours) > 0 ? Number(l.cr
 export const creditPrice = (hours, cfg) => Math.round(Number((hours * cfg.rate).toFixed(6)));
 const r2 = (n) => Math.round(n * 100) / 100;
 
+/**
+ * Token price of one self-evaluation document (same credit-hour system as lessons).
+ *   credit system on (rate > 0) and the document has creditHours  →  creditHours × rate
+ *   otherwise                                                     →  its fixed priceEtb (default 30)
+ * Pass `cfg` (from creditConfig()) when you already have it.
+ */
+export const selfEvalPriceOf = (e, cfg) => (cfg?.active && Number(e?.creditHours) > 0
+  ? creditPrice(Number(e.creditHours), cfg)
+  : Math.max(0, Math.round(Number(e?.priceEtb) || 0)));
+
 // A lesson is "sellable" once it has something to read or watch.
 const SELLABLE = { $or: [{ $ne: ['$kind', 'blocks'] }, { $gt: [{ $size: { $ifNull: ['$blocks', []] } }, 0] }] };
 

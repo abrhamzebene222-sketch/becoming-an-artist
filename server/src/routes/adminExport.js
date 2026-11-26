@@ -7,11 +7,20 @@ import { requireAdmin } from '../auth.js';
 import { fail, msg } from '../i18n.js';
 import { ah } from '../lib.js';
 import { botConfig, sendAdminDocument } from '../telegram.js';
+import { labelBases } from '../imageLabels.js';
 import { lessonCode, loadImages, buildHtml, buildPdf, asciiSlug, MAX_EXPORT_BYTES } from '../lessonExport.js';
 
 const router = Router();
 router.use(requireAdmin);
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// Picture-name base for the editors (lesson or self-evaluation document): /api/admin/lessons/:id/label-base?selfEval=1
+router.get('/lessons/:id/label-base', ah(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return fail(req, res, 404, 'lessonNotFound');
+  const lesson = await Lesson.findById(req.params.id, 'title titleAm course').lean();
+  if (!lesson) return fail(req, res, 404, 'lessonNotFound');
+  res.json(await labelBases(lesson, { selfEval: req.query.selfEval === '1' }));
+}));
 
 router.post('/lessons/:id/export', ah(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return fail(req, res, 404, 'lessonNotFound');

@@ -4,6 +4,8 @@ import { api, useApi, useAuth, etb } from '../../api.js';
 import { useI18n } from '../../i18n/index.jsx';
 import PaymentForm from '../../components/PaymentForm.jsx';
 import Icon from '../../components/Icon.jsx';
+import { KidsBackdrop } from '../../components/KidsDecor.jsx';
+import useKidsTheme, { isKidsCourse, isKidsSlug } from '../../lib/useKidsTheme.js';
 
 const mins = (s) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '');
 
@@ -20,6 +22,9 @@ export default function CourseDetail() {
   const [plan, setPlan] = useState('course');
   const [creditMsg, setCreditMsg] = useState(null);
   const c = course.data;
+  // Young Artists Club course → the whole page turns into the colourful kids theme (decided from the address first, so there is no flash)
+  const kids = isKidsSlug(slug) || isKidsCourse(c);
+  useKidsTheme(kids);
   const access = !!c?.hasAccess;
   const credit = summary.data?.creditEtb || 0;
 
@@ -54,6 +59,7 @@ export default function CourseDetail() {
 
   return (
     <div className="flex flex-col gap-6">
+      {kids && <KidsBackdrop />}
       <nav aria-label="Breadcrumb" className="text-sm text-muted flex flex-wrap gap-x-1.5">
         <Link to="/catalog">{t('nav.catalog')}</Link>
         {c.breadcrumb.map((b) => <span key={b.id}>› {loc(b, 'title')}</span>)}
@@ -63,17 +69,17 @@ export default function CourseDetail() {
         <section className="flex flex-col gap-6 min-w-0">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="eyebrow">{loc(c.category, 'title')}</span>
+              {kids ? <span className="kids-sticker">{loc(c.category, 'title')}</span> : <span className="eyebrow">{loc(c.category, 'title')}</span>}
               {c.isFree && <span className="rounded-full bg-teal text-[#0B1312] px-2.5 py-0.5 text-xs font-bold">{t('common.free')}</span>}
               {!c.isFree && !access && <span className="rounded-full border border-[#5A4A2A] bg-[#241E12] text-[#F2D98A] px-2.5 py-0.5 text-xs font-semibold">{t('detail.locked')}</span>}
               {!c.isFree && access && <span className="rounded-full bg-teal-active text-mint px-2.5 py-0.5 text-xs font-semibold">✓ {t('detail.unlocked')}</span>}
             </div>
-            <h1 className="text-3xl font-semibold mt-1.5 mb-2">{loc(c, 'title')}</h1>
+            <h1 className={kids ? 'text-4xl sm:text-5xl font-bold mt-3 mb-2 leading-tight [text-shadow:0_3px_0_rgba(0,0,0,0.25)]' : 'text-3xl font-semibold mt-1.5 mb-2'}>{loc(c, 'title')}</h1>
             <p className="text-muted-soft leading-relaxed">{loc(c, 'summary')}</p>
           </div>
 
           {/* Lessons list — each lesson opens on its own page (video / PDF / text / images / YouTube) */}
-          <div className="card overflow-hidden">
+          <div className={`card overflow-hidden ${kids ? 'kids-card k-sky' : ''}`}>
             <div className="p-5 pb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">{t('course.lessonsTitle')}</h2>
               <span className="text-sm text-muted">{t('common.lessons', { n: c.lessons.length })}{creditOn && c.creditHours > 0 ? ` · ${t('credit.totalHours', { n: c.creditHours })}` : ''}</span>
@@ -85,15 +91,20 @@ export default function CourseDetail() {
               </p>
             )}
             {c.lessons.length === 0 && <p className="px-5 pb-5 text-sm text-muted">{t('course.noLessons')}</p>}
-            <ul>
+            <ul className={kids ? 'kids-rainbow' : undefined}>
               {c.lessons.map((l, i) => {
                 const open = canOpen(l);
                 const buyable = !open && !!user && l.tokenPrice > 0;     // locked, but can be unlocked alone with tokens → opens its own page
                 const icon = l.kind === 'pdf' ? 'file' : l.kind === 'video' ? 'play' : l.blockTypes?.includes('youtube') ? 'youtube' : 'text';
                 const inner = (
                   <>
-                    <Icon name={icon} size={16} className={open ? 'text-teal-soft shrink-0' : 'text-muted-dim shrink-0'} />
-                    <span className="flex-1 min-w-0 truncate">{i + 1} · {loc(l, 'title')}</span>
+                    {kids ? (
+                      <span className={`shrink-0 w-9 h-9 rounded-full grid place-items-center font-kids font-bold text-[#2A1458] shadow-[0_3px_0_rgba(0,0,0,0.25)] ${open ? 'bg-[rgb(var(--k))]' : 'bg-muted-dim/60'}`}>{i + 1}</span>
+                    ) : (
+                      <Icon name={icon} size={16} className={open ? 'text-teal-soft shrink-0' : 'text-muted-dim shrink-0'} />
+                    )}
+                    <span className={`flex-1 min-w-0 truncate ${kids ? 'font-semibold text-[15px]' : ''}`}>{kids ? '' : `${i + 1} · `}{loc(l, 'title')}</span>
+                    {kids && <Icon name={icon} size={15} className={open ? 'text-[rgb(var(--k))] shrink-0' : 'text-muted-dim shrink-0'} />}
                     {l.durationSec ? <span className="text-xs text-muted-dim hidden sm:inline">{mins(l.durationSec)}</span> : null}
                     {!access && l.isPreview && <span className="rounded-full bg-teal text-[#0B1312] px-2 py-0.5 text-[11px] font-bold shrink-0">{t('detail.previewTag')}</span>}
                     {creditOn && l.creditHours > 0 && <span className="text-xs text-muted-dim shrink-0 hidden sm:inline">{t('credit.hoursShort', { n: l.creditHours })}</span>}
@@ -102,7 +113,7 @@ export default function CourseDetail() {
                   </>
                 );
                 return (
-                  <li key={l.id} className="border-t border-line">
+                  <li key={l.id} className={`border-t ${kids ? 'border-line/70' : 'border-line'}`}>
                     {open || buyable ? (
                       <Link to={`/courses/${slug}/lessons/${l.id}`}
                         className="w-full flex items-center gap-3 px-5 py-3.5 text-left text-sm min-h-12 hover:bg-ink/60">{inner}</Link>
@@ -121,7 +132,7 @@ export default function CourseDetail() {
             )}
           </div>
 
-          <div className="card p-6 flex flex-col gap-4">
+          <div className={`card p-6 flex flex-col gap-4 ${kids ? 'kids-card k-pink' : ''}`}>
             <h2 className="text-lg font-semibold">{t('course.outcomesTitle')}</h2>
             {c.learningOutcomes && <p className="text-sm text-muted-soft leading-relaxed"><strong className="text-white">{t('course.afterCourse')} </strong>{c.learningOutcomes}</p>}
             {c.deliverables && <p className="text-sm text-muted-soft leading-relaxed"><strong className="text-white">{t('course.deliverable')} </strong>{c.deliverables}</p>}
@@ -143,7 +154,7 @@ export default function CourseDetail() {
           </div>
         </section>
 
-        <aside className="card p-6 flex flex-col gap-5 xl:sticky xl:top-6">
+        <aside className={`card p-6 flex flex-col gap-5 xl:sticky xl:top-6 ${kids ? 'kids-card k-sun' : ''}`}>
           {c.isFree ? (
             <>
               <h2 className="text-lg font-semibold">{t('course.freeTitle')}</h2>

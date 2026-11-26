@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ───────── Colour tokens (RGB channels, used by tailwind.config.js) ─────────
+   Default = the original teal brand. `.theme-kids` swaps in the Young Artists Club palette:
+   deep-grape night sky + coral (the complement of the brand teal) + sunshine yellow + candy accents. */
+:root {
+  --c-ink: 17 27 26;        --c-ink-deep: 13 21 20;     --c-ink-panel: 22 34 31;
+  --c-line: 36 52 49;       --c-line-strong: 44 63 59;
+  --c-teal: 31 166 155;     --c-teal-dark: 22 128 120;  --c-teal-active: 22 48 45;  --c-teal-soft: 127 227 217;
+  --c-mint: 191 245 240;    --c-mint-pale: 223 251 248;
+  --c-muted: 157 179 175;   --c-muted-soft: 185 204 201; --c-muted-dim: 138 162 158;
+}
+.theme-kids {
+  --c-ink: 29 17 64;        --c-ink-deep: 21 11 51;     --c-ink-panel: 42 26 90;
+  --c-line: 68 48 127;      --c-line-strong: 90 65 160;
+  --c-teal: 255 122 89;     --c-teal-dark: 214 74 45;   --c-teal-active: 74 42 140; --c-teal-soft: 255 209 102;
+  --c-mint: 255 226 168;    --c-mint-pale: 255 244 217;
+  --c-muted: 189 175 230;   --c-muted-soft: 214 204 243; --c-muted-dim: 165 150 214;
+}
+
+/* The whole page fades smoothly to the kids colours when a Young Artists Club course / lesson opens */
+html, body { transition: background-color .6s ease, color .6s ease; }
+
 /* Amharic (Ethiopic) text needs a little more line height to read comfortably */
 html[lang='am'] body { line-height: 1.65; }
 
@@ -40,3 +61,99 @@ html[lang='am'] body { line-height: 1.65; }
   .chip { @apply inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border cursor-pointer select-none text-sm; }
 }
 
+/* ───────── Young Artists Club (kids) ───────── */
+/* candy colours; a parent with .kids-rainbow hands every child its own colour in turn via --k */
+.k-coral { --k: 255 122 89; }  .k-sun { --k: 255 209 102; }  .k-sky { --k: 76 201 240; }
+.k-pink { --k: 255 143 184; }  .k-lime { --k: 155 229 100; } .k-violet { --k: 167 139 250; }
+.kids-rainbow > :nth-child(6n+1) { --k: 255 122 89; }
+.kids-rainbow > :nth-child(6n+2) { --k: 255 209 102; }
+.kids-rainbow > :nth-child(6n+3) { --k: 76 201 240; }
+.kids-rainbow > :nth-child(6n+4) { --k: 255 143 184; }
+.kids-rainbow > :nth-child(6n+5) { --k: 155 229 100; }
+.kids-rainbow > :nth-child(6n+6) { --k: 167 139 250; }
+
+/* Round, bouncy, chunky buttons & fields, and a rounded heading font, everywhere inside the kids theme */
+.theme-kids h1, .theme-kids h2, .theme-kids h3, .theme-kids .font-kids { font-family: Fredoka, 'Noto Sans Ethiopic', Nyala, system-ui, sans-serif; letter-spacing: .01em; }
+.theme-kids .btn { border-radius: 9999px; font-family: Fredoka, 'Noto Sans Ethiopic', Nyala, system-ui, sans-serif; font-weight: 600; }
+.theme-kids .btn-primary { color: #2A1458; box-shadow: 0 4px 0 rgb(var(--c-teal-dark)); transition: transform .15s, box-shadow .15s, background-color .2s; }
+.theme-kids .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 0 rgb(var(--c-teal-dark)); }
+.theme-kids .btn-primary:active { transform: translateY(3px); box-shadow: 0 1px 0 rgb(var(--c-teal-dark)); }
+.theme-kids .btn-ghost { border-width: 2px; }
+.theme-kids .input { border-radius: 1rem; border-width: 2px; }
+.theme-kids .nav-link { border-radius: 9999px; }
+
+@layer components {
+  /* sticker-style card with a coloured edge and a chunky "paper" shadow */
+  .kids-card {
+    --k: 255 122 89;
+    position: relative; border-radius: 1.5rem;
+    border: 2px solid rgb(var(--k) / .6);
+    background: linear-gradient(160deg, rgb(var(--k) / .20) 0%, rgb(var(--c-ink-panel)) 62%);
+    box-shadow: 0 5px 0 0 rgb(var(--k) / .45);
+    transition: transform .28s cubic-bezier(.34, 1.56, .64, 1), box-shadow .2s, border-color .2s;
+  }
+  a.kids-card:hover { transform: translateY(-5px) rotate(-.8deg); box-shadow: 0 10px 0 0 rgb(var(--k) / .45); border-color: rgb(var(--k)); }
+  a.kids-card:active { transform: translateY(2px); box-shadow: 0 1px 0 0 rgb(var(--k) / .45); }
+
+  /* the area that unrolls under the banner */
+  .kids-panel {
+    position: relative; border-radius: 2rem; padding: 1rem;
+    background:
+      radial-gradient(circle at 8% 0%, rgb(255 122 89 / .20), transparent 42%),
+      radial-gradient(circle at 96% 8%, rgb(76 201 240 / .16), transparent 40%),
+      radial-gradient(circle at 70% 100%, rgb(255 143 184 / .16), transparent 45%),
+      rgb(var(--c-ink-deep) / .75);
+    border: 2.5px dashed rgb(255 209 102 / .55);
+    transform-origin: top center;
+    animation: kids-unroll .6s cubic-bezier(.34, 1.4, .64, 1) backwards;
+  }
+  @media (min-width: 640px) { .kids-panel { padding: 1.5rem; } }
+  .kids-stagger > * { animation: kids-pop .5s cubic-bezier(.34, 1.56, .64, 1) backwards; }
+  .kids-stagger > :nth-child(1) { animation-delay: .08s; }
+  .kids-stagger > :nth-child(2) { animation-delay: .16s; }
+  .kids-stagger > :nth-child(3) { animation-delay: .24s; }
+  .kids-stagger > :nth-child(4) { animation-delay: .32s; }
+  .kids-stagger > :nth-child(n+5) { animation-delay: .4s; }
+  .kids-rainbow.kids-pop-in > * { animation: kids-pop .5s cubic-bezier(.34, 1.56, .64, 1) backwards; }
+  .kids-rainbow.kids-pop-in > :nth-child(2) { animation-delay: .07s; }
+  .kids-rainbow.kids-pop-in > :nth-child(3) { animation-delay: .14s; }
+  .kids-rainbow.kids-pop-in > :nth-child(4) { animation-delay: .21s; }
+  .kids-rainbow.kids-pop-in > :nth-child(5) { animation-delay: .28s; }
+  .kids-rainbow.kids-pop-in > :nth-child(n+6) { animation-delay: .35s; }
+
+  /* little sticker label ("Chapter 11") */
+  .kids-sticker {
+    display: inline-block; transform: rotate(-3deg); border-radius: 9999px;
+    background: #FFD166; color: #2A1458; padding: .2rem .8rem; font-weight: 700; font-size: .75rem;
+    letter-spacing: .08em; text-transform: uppercase; box-shadow: 0 3px 0 #E0A100;
+  }
+}
+
+@keyframes kids-unroll {
+  0% { opacity: 0; transform: scaleY(.88) translateY(-18px); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes kids-pop {
+  0% { opacity: 0; transform: translateY(18px) scale(.9); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes kids-float {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50% { transform: translateY(-12px) rotate(calc(var(--r, 0deg) + 9deg)); }
+}
+@keyframes kids-twinkle {
+  0%, 100% { transform: scale(1) rotate(var(--r, 0deg)); opacity: 1; }
+  50% { transform: scale(.7) rotate(calc(var(--r, 0deg) + 20deg)); opacity: .55; }
+}
+@keyframes kids-nudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+.kids-float { animation: kids-float 6s ease-in-out infinite; }
+.kids-twinkle { animation: kids-twinkle 2.8s ease-in-out infinite; }
+.kids-nudge { animation: kids-nudge 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .kids-float, .kids-twinkle, .kids-nudge, .kids-panel, .kids-stagger > *, .kids-rainbow.kids-pop-in > * { animation: none !important; }
+  .kids-card, a.kids-card:hover { transition: none; transform: none; }
+  html, body { transition: none; }
+}

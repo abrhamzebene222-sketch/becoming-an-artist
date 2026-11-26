@@ -10,6 +10,7 @@ import { optionalAuth } from '../auth.js';
 import { fail } from '../i18n.js';
 import { ah, hasLessonAccess, youtubeId } from '../lib.js';
 import { lessonUrl, posterUrl, accountFor } from '../cloudinary.js';
+import { labelBases } from '../imageLabels.js';
 
 const router = Router();
 
@@ -44,6 +45,7 @@ router.get('/lesson/:lessonId', optionalAuth, ah(async (req, res) => {
   const lesson = await openLesson(req, res);
   if (!lesson) return;
   const f = await fileUrls(lesson);
+  const labels = await labelBases(lesson);
   res.set('Cache-Control', 'private, no-cache'); // the service worker keeps its own offline copy
   res.json({
     id: String(lesson._id),
@@ -52,6 +54,8 @@ router.get('/lesson/:lessonId', optionalAuth, ah(async (req, res) => {
     subtitleAm: lesson.subtitleAm || '',
     kind: lesson.kind,
     isPreview: !!lesson.isPreview,
+    labelBase: labels.labelBase,       // picture name = labelBase + number (see client lib/imageLabel.js)
+    labelBaseAm: labels.labelBaseAm,
     url: f.url || null,
     poster: f.poster || null,
     blocks: (lesson.blocks || []).filter((b) => b.type !== 'imageHint').map((b) => ({

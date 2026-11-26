@@ -29,7 +29,7 @@ export default function SelfEvalView() {
         <h1 className="text-2xl font-semibold">{loc(d, 'title')}</h1>
         <p className="text-sm text-muted">{loc({ title: d.courseTitle, titleAm: d.courseTitleAm }, 'title')}</p>
       </header>
-      <BlocksView blocks={d.blocks} title={d.title} />
+      <BlocksView blocks={d.blocks} title={d.title} labelBase={d.labelBase} labelBaseAm={d.labelBaseAm} />
       {d.courseSlug && <Link to={`/courses/${d.courseSlug}/lessons/${d.lessonId}`} className="btn-ghost self-start text-sm">{t('selfEval.openLesson')}</Link>}
     </article>
   );

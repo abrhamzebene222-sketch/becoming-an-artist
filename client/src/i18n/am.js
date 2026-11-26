@@ -2,7 +2,7 @@
 export default {
   app: { name: 'Becoming an Artist', studio: 'የመምህር ስቱዲዮ' },
   lang: { toggle: 'English', aria: 'ቋንቋውን ወደ እንግሊዝኛ ቀይር' },
-  nav: {
+  nav: { closeMenu: 'ምናሌውን ዝጋ', back: 'ተመለስ',
     rewards: 'ሽልማቶች እና ግብዣዎች', assignment: 'አሳይንመንት ያስገቡ', promos: 'የማስታወቂያ ሰሌዳዎች', cloudinary: 'የCloudinary መለያዎች', telegram: 'ቴሌግራም ቦት እና ግብዣዎች', assignments: 'አሳይንመንቶች',
     dashboard: 'ዋና ገጽ', catalog: 'የኮርሶች ዝርዝር', enrolled: 'የተመዘገብኩባቸው ኮርሶች', sessions: 'የግል (1 ለ 1) ትምህርት',
     request: 'ኮርስ ይጠይቁ', teach: 'ከእኛ ጋር ያስተምሩ', signOut: 'ውጣ', signIn: 'ግባ', signUp: 'መለያ ፍጠር',
@@ -201,7 +201,7 @@ export default {
     upload: 'ምስል ይጫኑ', replace: 'ቀይር', remove: 'አስወግድ', uploading: 'በመጫን ላይ…', account: 'የCloudinary መለያ',
     primary: 'ዋና', secondary: 'ሁለተኛ', addSlide: '+ ምስል ያክሉ',
   },
-  blocks: {
+  blocks: { lessonMissing: 'ይህ ትምህርት አልተገኘም።', editorTitle: 'የትምህርት አርታዒ', closeWindow: 'መስኮቱን ዝጋ',
     type: 'የትምህርት ዓይነት', file: 'ቪዲዮ / PDF ፋይል', modular: 'ሞጁላር (ጽሑፍ፣ ምስል፣ YouTube)',
     addText: '+ የጽሑፍ ሳጥን ያክሉ', addImage: '+ ምስል ያክሉ', addYoutube: '+ የYouTube ቪዲዮ ያክሉ', textEn: 'ጽሑፍ (እንግሊዝኛ)', textAm: 'ጽሑፍ (አማርኛ)',
     youtubeUrl: 'የYouTube ሊንክ', caption: 'መግለጫ (አማራጭ)', up: 'ወደ ላይ', down: 'ወደ ታች', invalidYoutube: 'ትክክለኛ የYouTube ሊንክ ያስገቡ።',
@@ -275,4 +275,9 @@ export default {
   assignAdmin: { title: 'የገቡ አሳይንመንቶች', none: 'ገና ምንም አልገባም።', pdf: 'PDF ክፈት', sent: 'ወደ ቴሌግራም ተልኳል', failed: 'ቴሌግራም አልተሳካም', notConfigured: 'ቴሌግራም አልተዘጋጀም' },
   tiersAdmin: { title: 'የወርሃዊ ዕቅድ ቅናሽ ደረጃዎች', text: 'ተማሪው በሚመርጣቸው ቡድኖች ውስጥ ባሉ ጠቅላላ ትምህርቶች ላይ የተመሰረተ።', min: 'ከ (ትምህርቶች)', max: 'እስከ (0 = ገደብ የለም)', percent: 'ቅናሽ %', add: '+ ደረጃ ያክሉ' },
   offline: { banner: 'ከመስመር ውጭ — ቀደም ብለው የከፈቷቸው ትምህርቶች ይገኛሉ።' },
+  // Lesson page + lesson editor window strings
+  lessonPage: {
+    notFound: 'ይህ ትምህርት አልተገኘም።', backToCourse: 'ወደ ኮርሱ ተመለስ', position: 'ትምህርት {n} ከ {total}',
+    unlockCourse: 'ለመቀጠል ክፈት', previous: 'ቀዳሚ', next: 'ቀጣይ', finish: 'ጨርስ',
+  },
 };

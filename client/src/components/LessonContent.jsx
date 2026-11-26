@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, cdn } from '../api.js';
 import { useI18n } from '../i18n/index.jsx';
 import Icon from './Icon.jsx';
+import { imageNumbers, imageLabel } from '../lib/imageLabel.js';
 
 /**
  * In-app lesson view (web-view style): video / PDF from Cloudinary + modular text, image and YouTube blocks.
@@ -27,6 +28,8 @@ export default function LessonContent({ lessonId }) {
   if (!data) return <p className="text-sm text-muted p-4">{t('detail.loadingLesson')}</p>;
 
   let stepNumber = 0;
+  const picNo = imageNumbers(data.blocks);
+  const picLabel = (b) => imageLabel(data.labelBase, data.labelBaseAm, lang, picNo[b.id]);
   return (
     <div className="flex flex-col gap-4 p-4 pt-1">
       {offline && <p className="text-xs text-[#F2D98A] flex items-center gap-2"><Icon name="wifiOff" size={14} />{t('detail.offline')}</p>}
@@ -61,6 +64,7 @@ export default function LessonContent({ lessonId }) {
                   <figure className="flex flex-col gap-1.5">
                     <img src={cdn(b.imageUrl, 1600)} alt={b.caption || t('lessonBlocks.step', { n: stepNumber })} loading="lazy" className="w-full rounded-xl border border-line object-contain bg-ink-deep" />
                     {b.caption && <figcaption className="text-xs text-muted text-center">{b.caption}</figcaption>}
+                    {picLabel(b) && <figcaption className="text-[10px] leading-snug text-muted-dim text-center break-words">{picLabel(b)}</figcaption>}
                   </figure>
                 )}
               </div>
@@ -86,6 +90,7 @@ export default function LessonContent({ lessonId }) {
             <figure key={b.id} className="flex flex-col gap-1.5">
               <img src={cdn(b.imageUrl, 1600)} alt={b.caption || ''} loading="lazy" className="w-full rounded-xl border border-line object-contain bg-ink-deep" />
               {b.caption && <figcaption className="text-xs text-muted text-center">{b.caption}</figcaption>}
+              {picLabel(b) && <figcaption className="text-[10px] leading-snug text-muted-dim text-center break-words">{picLabel(b)}</figcaption>}
             </figure>
           );
         }

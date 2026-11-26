@@ -3,6 +3,7 @@ import { useI18n } from '../i18n/index.jsx';
 import { youtubeId, youtubeThumb } from '../lib/youtube.js';
 import ImageUploader from './ImageUploader.jsx';
 import Icon from './Icon.jsx';
+import { imageNumbers, imageLabel } from '../lib/imageLabel.js';
 
 let seq = 0;
 const key = () => `b${Date.now().toString(36)}${(seq += 1)}`;
@@ -33,8 +34,8 @@ const ADD_TYPES = [['text', 'Text', 'text'], ['heading', 'Heading', 'text'], ['s
  * Modular lesson builder: alternating Text boxes, Images and YouTube videos in any order.
  * value: [{ type: 'text', text, textAm } | { type: 'image', image, caption } | { type: 'youtube', youtubeUrl, caption }]
  */
-export default function BlockEditor({ value, onChange }) {
-  const { t } = useI18n();
+export default function BlockEditor({ value, onChange, labelBase = '', labelBaseAm = '' }) {
+  const { t, lang } = useI18n();
   const blocks = value || [];
   const upd = (i, patch) => onChange(blocks.map((b, j) => (j === i ? { ...b, ...patch } : b)));
   const move = (i, d) => {
@@ -50,6 +51,9 @@ export default function BlockEditor({ value, onChange }) {
   const stepNo = {};
   let counter = 0;
   blocks.forEach((b) => { if (b.type === 'heading') counter = 0; if (b.type === 'step') { counter += 1; stepNo[b._k] = counter; } });
+  const picNo = imageNumbers(blocks);
+  const picLabel = (b) => imageLabel(labelBase, labelBaseAm, lang, picNo[b._k]);
+  const LabelLine = ({ b }) => (picLabel(b) ? <p className="text-[10px] leading-snug text-muted-dim break-words">{picLabel(b)}</p> : null);
   const [openAt, setOpenAt] = useState(null); // which "insert here" bar is open (position number)
   const insertAt = (at, type) => {
     const next = blocks.slice();
@@ -147,6 +151,7 @@ export default function BlockEditor({ value, onChange }) {
                 {b.image || b._img ? (
                   <>
                     <ImageUploader value={b.image} folder="blocks" onChange={(image) => upd(i, { image })} />
+                    <LabelLine b={b} />
                     <label className="label">{t('blocks.caption')}<input className="input py-2" value={b.caption || ''} onChange={(e) => upd(i, { caption: e.target.value })} /></label>
                     <button type="button" className="btn-ghost py-1.5 text-sm self-start text-[#F2A7A0]" onClick={() => upd(i, { image: null, caption: '', _img: false })}>{t('blocks.removeStepImage')}</button>
                   </>
@@ -159,6 +164,7 @@ export default function BlockEditor({ value, onChange }) {
               <>
                 {b._hint && !b.image && <p className="text-xs text-[#F2D98A] break-words">{t('blocks.suggested', { hint: b._hint })}</p>}
                 <ImageUploader value={b.image} folder="blocks" onChange={(image) => upd(i, { image })} />
+                <LabelLine b={b} />
                 <label className="label">{t('blocks.caption')}<input className="input py-2" value={b.caption || ''} onChange={(e) => upd(i, { caption: e.target.value })} /></label>
               </>
             )}

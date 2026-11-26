@@ -1,14 +1,17 @@
 import { cdn } from '../api.js';
 import { useI18n } from '../i18n/index.jsx';
+import { imageNumbers, imageLabel } from '../lib/imageLabel.js';
 
 /**
  * Read-only view of modular blocks (text, heading, numbered step, tip/warning, image, YouTube).
  * Same look as a lesson (LessonContent.jsx). Used by the self-evaluation document page.
  * blocks: the list returned by the server: { id, type, text, textAm, caption, imageUrl, variant, youtubeId }
  */
-export default function BlocksView({ blocks = [], title = '' }) {
+export default function BlocksView({ blocks = [], title = '', labelBase = '', labelBaseAm = '' }) {
   const { t, lang } = useI18n();
   let stepNumber = 0;
+  const picNo = imageNumbers(blocks);
+  const picLabel = (b) => imageLabel(labelBase, labelBaseAm, lang, picNo[b.id]);
   return (
     <div className="flex flex-col gap-4">
       {blocks.map((b) => {
@@ -29,6 +32,7 @@ export default function BlocksView({ blocks = [], title = '' }) {
                   <figure className="flex flex-col gap-1.5">
                     <img src={cdn(b.imageUrl, 1600)} alt={b.caption || t('lessonBlocks.step', { n: stepNumber })} loading="lazy" className="w-full rounded-xl border border-line object-contain bg-ink-deep" />
                     {b.caption && <figcaption className="text-xs text-muted text-center">{b.caption}</figcaption>}
+                    {picLabel(b) && <figcaption className="text-[10px] leading-snug text-muted-dim text-center break-words">{picLabel(b)}</figcaption>}
                   </figure>
                 )}
               </div>
@@ -53,6 +57,7 @@ export default function BlocksView({ blocks = [], title = '' }) {
             <figure key={b.id} className="flex flex-col gap-1.5">
               <img src={cdn(b.imageUrl, 1600)} alt={b.caption || ''} loading="lazy" className="w-full rounded-xl border border-line object-contain bg-ink-deep" />
               {b.caption && <figcaption className="text-xs text-muted text-center">{b.caption}</figcaption>}
+              {picLabel(b) && <figcaption className="text-[10px] leading-snug text-muted-dim text-center break-words">{picLabel(b)}</figcaption>}
             </figure>
           );
         }

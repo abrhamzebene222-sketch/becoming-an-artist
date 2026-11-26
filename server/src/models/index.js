@@ -143,6 +143,9 @@ export const SelfEval = model('SelfEval', (() => {
   const sc = new Schema({
     lesson: { type: Schema.Types.ObjectId, ref: 'Lesson', required: true, unique: true },
     priceEtb: { type: Number, default: SELFEVAL_DEFAULT_PRICE, min: 0 }, // tokens; editable per document (0 = free)
+    // CREDIT HOURS — same system as lessons. When Admin › Settings has a credit-hour rate and this is set,
+    // price = creditHours × rate and overrides priceEtb. Empty = the fixed priceEtb above is used.
+    creditHours: { type: Number, min: 0, max: 10, default: null },
     blocks: { type: [BlockSchema], default: [] },
     isPublished: { type: Boolean, default: true },
   }, opts());
@@ -317,6 +320,24 @@ const PromoSchema = new Schema({
 }, opts());
 PromoSchema.index({ board: 1, slot: 1 }, { unique: true });
 export const Promo = model('Promo', PromoSchema);
+
+// ---------- News feed (admin-written items, or a lesson published with "Add to news") ----------
+const NewsItemSchema = new Schema({
+  title: { type: String, required: true, trim: true },
+  titleAm: { type: String, default: '', trim: true },
+  summary: { type: String, default: '' },
+  summaryAm: { type: String, default: '' },
+  body: { type: String, default: '' },
+  bodyAm: { type: String, default: '' },
+  image: MediaSchema,
+  linkKind: { type: String, enum: ['none', 'lesson', 'course', 'url'], default: 'none' },
+  lesson: ref('Lesson'),
+  course: ref('Course'),
+  linkUrl: { type: String, default: '' },
+  isActive: { type: Boolean, default: true },
+}, opts());
+NewsItemSchema.index({ isActive: 1, createdAt: -1 });
+export const NewsItem = model('NewsItem', NewsItemSchema);
 
 // ---------- Telegram referral / APK sharing / sponsored campaigns ----------
 const MilestoneSchema = new Schema({

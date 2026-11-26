@@ -9,6 +9,7 @@ export default function LessonEditor() {
   const { id } = useParams();
   const { t } = useI18n();
   const curriculum = useApi('/admin/curriculum');
+  const labels = useApi(`/admin/lessons/${id}/label-base`, [id]);
   const [form, setForm] = useState(null);
   const [lessonTitle, setLessonTitle] = useState('');
   const [msg, setMsg] = useState({ text: '', error: false });
@@ -50,7 +51,7 @@ export default function LessonEditor() {
           <label className="label">{t('admin.courses.keywordsAm')}<input className="input" lang="am" value={form.keywordsAm} onChange={(e) => setForm({ ...form, keywordsAm: e.target.value })} /></label>
           <p className="text-xs text-muted md:col-span-2">{t('admin.courses.keywordsHint')}</p>
         </div>
-        <BlockEditor value={form.blocks} onChange={(blocks) => setForm({ ...form, blocks })} />
+        <BlockEditor value={form.blocks} onChange={(blocks) => setForm({ ...form, blocks })} labelBase={labels.data?.labelBase} labelBaseAm={labels.data?.labelBaseAm} />
         <div className="flex flex-wrap items-center gap-2">
           <button className="btn-primary py-2" onClick={save}>{t('blocks.saveContent')}</button>
           <button className="btn-ghost py-2" onClick={() => window.close()}>{t('blocks.closeWindow')}</button>

@@ -10,6 +10,7 @@ import useTelegramShare from '../../components/TelegramShare.jsx';
 import Icon from '../../components/Icon.jsx';
 import { LessonRow } from '../../components/SearchHits.jsx';
 import useSearch from '../../lib/useSearch.js';
+import { KIDS_SLUG } from '../../lib/useKidsTheme.js';
 
 export default function Catalog() {
   const { t } = useI18n();
@@ -106,38 +107,41 @@ export default function Catalog() {
         const hasSubChildren = cat.children && cat.children.length > 0;
         const hasOwnCourses = cat.ownCourses && cat.ownCourses.length > 0;
         const hasContent = hasSubChildren || hasOwnCourses;
+        const kids = cat.slug === KIDS_SLUG;            // Young Artists Club → its own colourful look
+        const kctx = kids ? { ...ctx, kids: true } : ctx;
 
         return (
           <Fragment key={cat.id}>
-            <section id={cat.slug} className="flex flex-col gap-4 scroll-mt-6">
+            <section id={cat.slug} className={`flex flex-col gap-4 scroll-mt-6 ${kids ? 'theme-kids' : ''}`}>
               {/* ሜጀር ግሩፕ ባነር - አሮይቷን እና ኤክስፓንድ ሎጂኩን የያዘ */}
               <GroupSlideshow 
                 group={cat} 
                 index={i} 
                 expanded={isExpanded} 
                 onToggle={() => toggleGroup(cat.id)}
+                kids={kids}
               >
-                <GroupBadge node={cat} {...ctx} />
+                <GroupBadge node={cat} {...kctx} />
               </GroupSlideshow>
 
               {/* ሲከፈት ብቻ ከስሩ የሚዘረጉ ኮርሶች እና ንዑስ ግሩፖች */}
               {isExpanded && hasContent && (
-                <div className="flex flex-col gap-4 pl-2 sm:pl-4 pt-2">
+                <div className={kids ? 'kids-panel kids-stagger flex flex-col gap-4' : 'flex flex-col gap-4 pl-2 sm:pl-4 pt-2'}>
                   {hasOwnCourses && (
-                    <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                    <div className={`grid sm:grid-cols-2 xl:grid-cols-4 gap-4 ${kids ? 'kids-rainbow kids-pop-in' : ''}`}>
                       {cat.ownCourses.map((c) => (
-                        <CourseCard key={c.id} course={c} owned={ctx.subscribed || ownedGroups.has(cat.id) || ctx.ownedIds.has(c.id)} />
+                        <CourseCard key={c.id} kids={kids} course={c} owned={ctx.subscribed || ownedGroups.has(cat.id) || ctx.ownedIds.has(c.id)} />
                       ))}
                     </div>
                   )}
                   {hasSubChildren && (
-                    <div className="flex flex-col gap-3">
+                    <div className={`flex flex-col gap-3 ${kids ? 'kids-rainbow kids-pop-in' : ''}`}>
                       {cat.children.map((ch) => (
                         <SubGroup 
                           key={ch.id} 
                           node={ch} 
                           depth={1} 
-                          {...ctx} 
+                          {...kctx} 
                           ownedGroups={ownedGroups.has(cat.id) ? new Set([...ownedGroups, ch.id]) : ownedGroups} 
                         />
                       ))}
@@ -183,14 +187,21 @@ function SubGroup({ node, depth, ...ctx }) {
   const hasSubChildren = node.children && node.children.length > 0;
   const hasOwnCourses = node.ownCourses && node.ownCourses.length > 0;
 
+  const kids = !!ctx.kids;
   return (
-    <section className="rounded-xl border border-line bg-ink-panel/40" aria-labelledby={`${id}-h`}>
+    <section className={kids ? 'kids-card' : 'rounded-xl border border-line bg-ink-panel/40'} aria-labelledby={`${id}-h`}>
       <div className="flex flex-wrap items-center gap-3 p-3 sm:p-4">
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={id}
           className="flex items-center gap-2 text-left flex-1 min-w-0 min-h-11 hover:text-mint transition-colors">
-          <Icon name={open ? 'chevronDown' : 'chevronRight'} size={18} className="text-teal-soft shrink-0" />
+          {kids ? (
+            <span className={`w-9 h-9 rounded-full grid place-items-center shrink-0 bg-[rgb(var(--k))] text-[#2A1458] transition-transform duration-300 ${open ? 'rotate-90' : ''}`}>
+              <Icon name="chevronRight" size={18} />
+            </span>
+          ) : (
+            <Icon name={open ? 'chevronDown' : 'chevronRight'} size={18} className="text-teal-soft shrink-0" />
+          )}
           <span className="min-w-0">
-            <span id={`${id}-h`} className="block font-semibold truncate">{loc(node, 'title')}</span>
+            <span id={`${id}-h`} className={`block font-semibold truncate ${kids ? 'font-kids text-lg' : ''}`}>{loc(node, 'title')}</span>
             <span className="block text-xs text-muted">
               {t('explorer.courses', { n: node.courses?.length || node.ownCourses?.length || 0 })}
               {hasSubChildren ? ` · ${t('explorer.subgroups', { n: node.children.length })}` : ''}
@@ -201,19 +212,19 @@ function SubGroup({ node, depth, ...ctx }) {
       </div>
       
       {open && (
-        <div id={id} className="px-3 sm:px-4 pb-4 flex flex-col gap-4 border-t border-line/50 pt-3">
+        <div id={id} className={`px-3 sm:px-4 pb-4 flex flex-col gap-4 border-t pt-3 ${kids ? 'border-[rgb(var(--k)/0.35)] kids-stagger' : 'border-line/50'}`}>
           {loc(node, 'description') && <p className="text-sm text-muted-soft">{loc(node, 'description')}</p>}
           
           {hasOwnCourses && (
-            <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className={`grid sm:grid-cols-2 xl:grid-cols-4 gap-4 ${kids ? 'kids-rainbow kids-pop-in' : ''}`}>
               {node.ownCourses.map((c) => (
-                <CourseCard key={c.id} course={c} owned={ctx.subscribed || ctx.ownedGroups.has(node.id) || ctx.ownedIds.has(c.id)} />
+                <CourseCard key={c.id} kids={kids} course={c} owned={ctx.subscribed || ctx.ownedGroups.has(node.id) || ctx.ownedIds.has(c.id)} />
               ))}
             </div>
           )}
 
           {hasSubChildren && (
-            <div className="flex flex-col gap-3 pl-3 sm:pl-5 border-l border-line/40">
+            <div className={`flex flex-col gap-3 pl-3 sm:pl-5 border-l ${kids ? 'border-[rgb(var(--k)/0.4)] kids-rainbow kids-pop-in' : 'border-line/40'}`}>
               {node.children.map((childSub) => (
                 <SubGroup 
                   key={childSub.id} 

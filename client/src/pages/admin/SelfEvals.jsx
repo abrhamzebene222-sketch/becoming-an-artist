@@ -10,8 +10,10 @@ function Editor({ lessonId, onChanged, onClose }) {
   const { t, loc } = useI18n();
   const [data, setData] = useState(null);
   const [price, setPrice] = useState('30');
+  const [hours, setHours] = useState('');   // credit hours (same system as lessons); empty = use the fixed price
   const [published, setPublished] = useState(true);
   const [blocks, setBlocks] = useState([]);
+  const labels = useApi(`/admin/lessons/${lessonId}/label-base?selfEval=1`, [lessonId]);
   const [msg, setMsg] = useState({ kind: '', text: '' });
   const [busy, setBusy] = useState(false);
   const [askDelete, setAskDelete] = useState(false);
@@ -19,6 +21,7 @@ function Editor({ lessonId, onChanged, onClose }) {
   const fill = (d) => {
     setData(d);
     setPrice(String(d.selfEval ? d.selfEval.priceEtb : d.defaultPriceEtb));
+    setHours(d.selfEval?.creditHours != null ? String(d.selfEval.creditHours) : '');
     setPublished(d.selfEval ? d.selfEval.isPublished : true);
     setBlocks(withKeys(d.selfEval?.blocks || []));
   };
@@ -33,7 +36,7 @@ function Editor({ lessonId, onChanged, onClose }) {
     setBusy(true); setMsg({ kind: '', text: '' });
     try {
       await api(`/admin/lessons/${lessonId}/self-eval`, {
-        method: 'PUT', body: { priceEtb: Number(price), isPublished: published, blocks: stripKeys(blocks) },
+        method: 'PUT', body: { priceEtb: Number(price), creditHours: hours, isPublished: published, blocks: stripKeys(blocks) },
       });
       fill(await api(`/admin/lessons/${lessonId}/self-eval`)); // reload so the saved images/ids are the server's
       setMsg({ kind: 'ok', text: t('common.saved') });
@@ -64,17 +67,24 @@ function Editor({ lessonId, onChanged, onClose }) {
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4 items-start">
+        <label className="label">{t('credit.hoursLabel')}
+          <input type="number" min="0.1" max="10" step="0.1" className="input" value={hours} placeholder="—" onChange={(e) => setHours(e.target.value)} />
+          <span className="text-xs text-muted-dim">{t('selfEvalAdmin.hoursHint')}</span>
+          {data.credit?.active && Number(String(hours).replace(',', '.')) > 0 && (
+            <span className="text-xs text-teal-soft">{t('credit.example', { h: Number(String(hours).replace(',', '.')), rate: data.credit.rate, price: Math.round(Number(String(hours).replace(',', '.')) * data.credit.rate) })}</span>
+          )}
+        </label>
         <label className="label">{t('selfEvalAdmin.price')}
           <input className="input" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, ''))} />
-          <span className="text-xs text-muted">{t('selfEvalAdmin.priceHint', { n: data.defaultPriceEtb })}</span>
+          <span className="text-xs text-muted">{t('selfEvalAdmin.priceHint', { n: data.defaultPriceEtb })} {t('selfEvalAdmin.priceFallback')}</span>
         </label>
-        <label className="flex items-center gap-3 min-h-11 mt-1 sm:mt-6 cursor-pointer">
+        <label className="flex items-center gap-3 min-h-11 mt-1 sm:mt-6 cursor-pointer sm:col-span-2">
           <input type="checkbox" className="w-5 h-5 accent-teal" checked={published} onChange={(e) => setPublished(e.target.checked)} />
           <span className="text-sm">{t('selfEvalAdmin.published')}</span>
         </label>
       </div>
 
-      <BlockEditor value={blocks} onChange={setBlocks} />
+      <BlockEditor value={blocks} onChange={setBlocks} labelBase={labels.data?.labelBase} labelBaseAm={labels.data?.labelBaseAm} />
 
       {msg.text && <p className={`text-sm ${msg.kind === 'err' ? 'text-[#F2A7A0]' : 'text-teal-soft'}`} role={msg.kind === 'err' ? 'alert' : 'status'}>{msg.text}</p>}
       <div className="flex gap-2 flex-wrap items-center">

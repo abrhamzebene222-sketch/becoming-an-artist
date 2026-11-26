@@ -11,7 +11,7 @@ import { notifyUser, notifyAllStudents } from '../notify.js';
 import { fail } from '../i18n.js';
 import {
   ah, pricing, getSetting, setSetting, slugify, cleanTiers, DEFAULT_TIERS, youtubeId,
-  getPrices, creditHoursInput, DEFAULT_CREDIT_HOURS,
+  getPrices, creditHoursInput, DEFAULT_CREDIT_HOURS, creditConfig, selfEvalPriceOf,
 } from '../lib.js';
 import {
   signUpload, findAsset, isConfigured, receiptUrl, resolveAccount, accountFor, syncMedia, uploadImage,
@@ -478,7 +478,7 @@ router.put('/lessons/:id', ah(async (req, res) => {
 
 // ---------- Self-evaluation documents (one per lesson; students buy them with tokens) ----------
 const serializeEval = (e) => ({
-  id: String(e._id), lessonId: String(e.lesson), priceEtb: e.priceEtb, isPublished: !!e.isPublished,
+  id: String(e._id), lessonId: String(e.lesson), priceEtb: e.priceEtb, creditHours: e.creditHours ?? null, isPublished: !!e.isPublished,
   blocks: (e.blocks || []).map((b) => ({
     _id: String(b._id), type: b.type, text: b.text || '', textAm: b.textAm || '', caption: b.caption || '',
     image: b.image?.url ? { url: b.image.url, publicId: b.image.publicId, account: b.image.account || 'env', resourceType: 'image' } : null,
@@ -488,6 +488,7 @@ const serializeEval = (e) => ({
 
 // All prepared documents (for the list in the admin page)
 router.get('/self-evals', ah(async (_req, res) => {
+  const cfg = await creditConfig();
   const evals = await SelfEval.find().sort({ updatedAt: -1 }).limit(500).lean();
   const lessons = await Lesson.find({ _id: { $in: evals.map((e) => e.lesson) } }, 'title titleAm course').lean();
   const courses = await Course.find({ _id: { $in: lessons.map((l) => l.course) } }, 'title titleAm').lean();
@@ -500,7 +501,7 @@ router.get('/self-evals', ah(async (_req, res) => {
     return {
       id: String(e._id), lessonId: String(e.lesson), title: l?.title || '', titleAm: l?.titleAm || '',
       courseTitle: c?.title || '', courseTitleAm: c?.titleAm || '',
-      priceEtb: e.priceEtb, isPublished: !!e.isPublished, blockCount: (e.blocks || []).length, buyers: buyerBy.get(String(e._id)) || 0,
+      priceEtb: selfEvalPriceOf(e, cfg), creditHours: e.creditHours ?? null, isPublished: !!e.isPublished, blockCount: (e.blocks || []).length, buyers: buyerBy.get(String(e._id)) || 0,
     };
   }));
 }));
@@ -515,6 +516,7 @@ router.get('/lessons/:lessonId/self-eval', ah(async (req, res) => {
   res.json({
     lesson: { id: String(lesson._id), title: lesson.title, titleAm: lesson.titleAm || '', courseTitle: course?.title || '', courseTitleAm: course?.titleAm || '' },
     defaultPriceEtb: SELFEVAL_DEFAULT_PRICE,
+    credit: await creditConfig(),                       // { rate, defaultHours, active } — the editor shows the live price
     selfEval: e ? serializeEval(e) : null,
     buyers: e ? await SelfEvalPurchase.countDocuments({ selfEval: e._id }) : 0,
   });
@@ -524,14 +526,18 @@ router.put('/lessons/:lessonId/self-eval', ah(async (req, res) => {
   if (!validId(req.params.lessonId)) return fail(req, res, 404, 'lessonNotFound');
   const lesson = await Lesson.findById(req.params.lessonId, '_id').lean();
   if (!lesson) return fail(req, res, 404, 'lessonNotFound');
-  const price = Number(req.body?.priceEtb);
-  if (!Number.isInteger(price) || price < 0 || price > 100000) return fail(req, res, 400, 'selfEvalPrice');
+  const hrs = creditHoursInput(req.body?.creditHours);               // same rules as lessons (0.1 – 10, empty = not used)
+  if (hrs.error) return fail(req, res, 400, hrs.error);
+  const hasPrice = req.body?.priceEtb !== undefined && req.body?.priceEtb !== '';
+  const price = hasPrice ? Number(req.body.priceEtb) : null;
+  if (hasPrice && (!Number.isInteger(price) || price < 0 || price > 100000)) return fail(req, res, 400, 'selfEvalPrice');
   const blocks = cleanBlocks(req.body?.blocks);
   if (!blocks.length) return fail(req, res, 400, 'lessonBlocks');
   let e = await SelfEval.findOne({ lesson: lesson._id });
   const before = e ? blockImages(e.blocks) : [];
   if (!e) e = new SelfEval({ lesson: lesson._id });
-  e.priceEtb = price;
+  if (hasPrice) e.priceEtb = price;                                  // fixed price (used when no credit hours / rate is 0)
+  if (!hrs.skip) e.creditHours = hrs.value;                          // null = price by the fixed priceEtb
   e.isPublished = req.body?.isPublished !== false;
   e.blocks = blocks;
   await e.save();

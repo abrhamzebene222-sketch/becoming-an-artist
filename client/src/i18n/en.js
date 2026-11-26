@@ -2,7 +2,7 @@
 export default {
   app: { name: 'Becoming an Artist', studio: 'INSTRUCTOR STUDIO' },
   lang: { toggle: 'አማርኛ', aria: 'Change language to Amharic' },
-  nav: {
+  nav: { closeMenu: 'Close menu', back: 'Back',
     rewards: 'Rewards & Referrals', assignment: 'Submit Assignment', promos: 'Promo Boards', cloudinary: 'Cloudinary Accounts', telegram: 'Telegram Bot & Referrals', assignments: 'Assignments',
     dashboard: 'Dashboard', catalog: 'Course Catalog', enrolled: 'My Enrolled Courses', sessions: '1-on-1 Sessions',
     request: 'Request a Course', teach: 'Teach with Us', signOut: 'Sign out', signIn: 'Sign in', signUp: 'Create account',
@@ -201,7 +201,7 @@ export default {
     upload: 'Upload image', replace: 'Replace', remove: 'Remove', uploading: 'Uploading…', account: 'Cloudinary account',
     primary: 'Primary', secondary: 'Secondary', addSlide: '+ Add image',
   },
-  blocks: {
+  blocks: { lessonMissing: 'This lesson was not found.', editorTitle: 'Lesson editor', closeWindow: 'Close window',
     type: 'Lesson type', file: 'Video / PDF file', modular: 'Modular (text, images, YouTube)',
     addText: '+ Add Text Box', addImage: '+ Add Image', addYoutube: '+ Add YouTube video', textEn: 'Text (English)', textAm: 'Text (Amharic)',
     youtubeUrl: 'YouTube URL', caption: 'Caption (optional)', up: 'Move up', down: 'Move down', invalidYoutube: 'Paste a valid YouTube link.',
@@ -275,4 +275,9 @@ export default {
   assignAdmin: { title: 'Assignment submissions', none: 'No submissions yet.', pdf: 'Open PDF', sent: 'Sent to Telegram', failed: 'Telegram failed', notConfigured: 'Telegram not set up' },
   tiersAdmin: { title: 'Monthly plan discount tiers', text: 'Based on the total lessons inside the groups a student selects.', min: 'From lessons', max: 'To (0 = no limit)', percent: 'Discount %', add: '+ Add tier' },
   offline: { banner: 'Offline mode — unlocked lessons you opened before are available.' },
+  // Lesson page + lesson editor window strings
+  lessonPage: {
+    notFound: 'This lesson was not found.', backToCourse: 'Back to the course', position: 'Lesson {n} of {total}',
+    unlockCourse: 'Unlock to continue', previous: 'Previous', next: 'Next', finish: 'Finish',
+  },
 };

@@ -5,6 +5,8 @@ import { useI18n } from '../../i18n/index.jsx';
 import LessonContent from '../../components/LessonContent.jsx';
 import TokenUnlock from '../../components/TokenUnlock.jsx';
 import Icon from '../../components/Icon.jsx';
+import { KidsBackdrop } from '../../components/KidsDecor.jsx';
+import useKidsTheme, { isKidsCourse, isKidsSlug } from '../../lib/useKidsTheme.js';
 
 // One lesson on its own page: /courses/:slug/lessons/:lessonId
 // Same access rules as the course page: free courses and FREE PREVIEW lessons are open to everyone,
@@ -17,6 +19,9 @@ export default function LessonPage() {
   const course = useApi(`/courses/${slug}`, [slug, user?.id]);
   const pricing = useApi('/pricing');
   const c = course.data;
+  // Young Artists Club lesson → the whole screen (background, menu, buttons) turns kids-colourful
+  const kids = isKidsSlug(slug) || isKidsCourse(c);
+  useKidsTheme(kids);
 
   // Every new lesson starts at the top of the page
   useEffect(() => { window.scrollTo(0, 0); }, [lessonId]);
@@ -47,19 +52,28 @@ export default function LessonPage() {
 
   return (
     <div className="flex flex-col gap-5 max-w-3xl w-full mx-auto">
+      {kids && <KidsBackdrop />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link to={backToCourse} className="btn-ghost py-2.5 text-sm">← {t('lessonPage.backToCourse')}</Link>
-        <span className="text-sm text-muted">{t('lessonPage.position', { n: index + 1, total: lessons.length })}</span>
+        <span className={kids ? 'kids-sticker' : 'text-sm text-muted'}>{t('lessonPage.position', { n: index + 1, total: lessons.length })}</span>
       </div>
+
+      {kids && (
+        <div role="progressbar" aria-valuemin={1} aria-valuemax={lessons.length} aria-valuenow={index + 1}
+          className="h-3.5 rounded-full bg-ink-deep border-2 border-line overflow-hidden">
+          <div className="h-full rounded-full transition-[width] duration-700 ease-out"
+            style={{ width: `${((index + 1) / lessons.length) * 100}%`, background: 'linear-gradient(90deg,#FF7A59,#FFD166,#9BE564,#4CC9F0,#FF8FB8)' }} />
+        </div>
+      )}
 
       <header>
         <span className="eyebrow">{loc(c, 'title')}</span>
-        <h1 className="text-2xl sm:text-3xl font-semibold mt-1.5 leading-snug">{lesson.title}</h1>
+        <h1 className={kids ? 'text-3xl sm:text-4xl font-bold mt-1.5 leading-tight [text-shadow:0_3px_0_rgba(0,0,0,0.25)]' : 'text-2xl sm:text-3xl font-semibold mt-1.5 leading-snug'}>{lesson.title}</h1>
         {pricing.data?.credit?.active && lesson.creditHours > 0 && <p className="text-xs text-muted-dim mt-1">{t('credit.hoursShort', { n: lesson.creditHours })}</p>}
         {loc(lesson, 'subtitle') && <p className="text-muted-soft mt-2 leading-relaxed">{loc(lesson, 'subtitle')}</p>}
       </header>
 
-      <div className="card overflow-hidden">
+      <div className={`card overflow-hidden ${kids ? 'kids-card k-sky' : ''}`}>
         {open ? (
           <LessonContent key={lesson.id} lessonId={lesson.id} />
         ) : (

@@ -6,6 +6,7 @@ import { Category, Course, Lesson, ContactInfo, SubmissionLink, Setting, User, P
 import { DEFAULT_TIERS } from './lib.js';
 import { config } from './config.js';
 import { CURRICULUM } from './curriculum.js';
+import { pruneLegacyCurriculum } from './prune-legacy.js';
 
 // Walks the curriculum tree (see curriculum.js for the shape).
 //   node with `children` -> Category (chapter / unit / section / studio)
@@ -86,6 +87,13 @@ export async function seed() {
   const counts = await seedTree(CURRICULUM);
   if (counts.groups || counts.courses || counts.lessons) {
     console.log(`✔ Curriculum: +${counts.groups} groups, +${counts.courses} courses, +${counts.lessons} lessons`);
+  }
+
+  // Remove the OLD starter courses/groups that are not in curriculum.js (they used to come back after every deploy).
+  // Real curriculum, content you wrote and anything students bought are never touched. Turn off: PRUNE_LEGACY=off
+  if (String(process.env.PRUNE_LEGACY || 'on').toLowerCase() !== 'off') {
+    try { await pruneLegacyCurriculum({ apply: true, quiet: true }); }
+    catch (e) { console.warn('⚠ Legacy cleanup skipped:', e.message); }
   }
 
   if (!(await ContactInfo.exists({}))) {
