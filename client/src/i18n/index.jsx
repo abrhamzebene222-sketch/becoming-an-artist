@@ -13,6 +13,7 @@ import { en as exportEn, am as exportAm } from './exportExtra.js';
 import { en as creditEn, am as creditAm } from './creditExtra.js';
 import { en as deviceEn, am as deviceAm } from './deviceExtra.js';
 import { en as deleteEn, am as deleteAm } from './deleteExtra.js';
+import { en as updateEn, am as updateAm } from './updateExtra.js';
 
 // Merge extra string files on top of the main dictionaries (nested objects are merged, not replaced).
 function merge(base, extra) {
@@ -24,8 +25,8 @@ function merge(base, extra) {
 }
 
 const DICTS = {
-  en: [tutoringEn, blocksEn, tokensEn, stepsEn, selfEvalEn, newsEn, exportEn, creditEn, deviceEn, deleteEn].reduce(merge, en),
-  am: [tutoringAm, blocksAm, tokensAm, stepsAm, selfEvalAm, newsAm, exportAm, creditAm, deviceAm, deleteAm].reduce(merge, am),
+  en: [tutoringEn, blocksEn, tokensEn, stepsEn, selfEvalEn, newsEn, exportEn, creditEn, deviceEn, deleteEn, updateEn].reduce(merge, en),
+  am: [tutoringAm, blocksAm, tokensAm, stepsAm, selfEvalAm, newsAm, exportAm, creditAm, deviceAm, deleteAm, updateAm].reduce(merge, am),
 };
 const KEY = 'baa_lang';
 

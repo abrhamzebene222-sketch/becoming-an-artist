@@ -66,7 +66,7 @@ export default {
   enrolled: {
     title: 'My Enrolled Courses', subscribedUntil: 'Monthly subscription active until {date}', none: 'No unlocked paid courses yet.',
     history: 'Payment history', date: 'Date', for: 'For', methodRef: 'Method · Ref', amount: 'Amount', status: 'Status',
-    noPayments: 'No payments yet.', purpose: { group: 'Course group', group_subscription: 'Monthly group plan', course: 'Course', subscription: 'Subscription', session: '1-on-1 session' },
+    noPayments: 'No payments yet.', purpose: { group: 'Course group', group_subscription: 'Monthly group plan', course: 'Course', subscription: 'Subscription', session: '1-on-1 session', assignment: 'Assignment review', topup: 'Token top-up' },
   },
   sessions: {
     title: '1-on-1 Sessions', requestTitle: 'Request a private session', format: 'Format', when: 'Preferred date & time',
@@ -241,7 +241,10 @@ export default {
     reasons: { referral_reward: 'Referral reward', unlock_course: 'Unlocked a course', unlock_group: 'Unlocked a group', admin: 'Adjustment by instructor' },
   },
   assign: {
-    title: 'Submit your assignment', text: 'Your work is compiled into a PDF report and sent to the instructor on Telegram.',
+    title: 'Submit your assignment', text: 'Choose a review type, pay, and send your work. Your form and payment details are compiled into one PDF and sent to the instructor on Telegram.',
+    reviewType: 'Review type', type: { one_on_one: '1-on-1 live review', video: 'Recorded video review', pdf: 'PDF written review' },
+    noPrice: 'The assignment fee is not set yet. Please contact the instructor.', payTitle: 'Payment (required)',
+    receipt: 'Payment receipt screenshot (recommended)', payNote: 'Pay first, then enter the payment reference ID. Your assignment is sent with the payment details; the instructor verifies the payment.', noReceipt: 'No receipt image — verify using the reference ID.',
     telegram: 'Telegram username', email: 'Email', course: 'Course (optional)', notes: 'Notes for the instructor', images: 'Artwork images (up to 12)',
     submit: 'Send assignment', sending: 'Building PDF & sending…', done: 'Sent! The instructor received your PDF.', saved: 'Saved. The instructor will see it in the dashboard.',
     mine: 'My submissions', none: 'No submissions yet.', remove: 'Remove image',
@@ -272,6 +275,7 @@ export default {
     active: 'Active', saveCampaign: 'Save campaign', delete: 'Delete', code: 'Code', shareCount: '{n} shares',
     tickets: 'Reward requests', approve: 'Approve', reject: 'Reject', noTickets: 'No requests here.', via: 'via {v}',
   },
+  assignFee: { title: 'Assignment review fees', text: 'Fee = the 1-on-1 hourly rate × the multiplier. 1-on-1 is always 1×. Students cannot submit until the base rate is set.', base: 'Base 1-on-1 rate', video: 'Recorded video multiplier', pdf: 'PDF multiplier', multiplier: 'Multiplier', fee: 'Fee', noBase: 'Set the 1-on-1 hourly rate above (Settings › Pricing) — until then students cannot submit assignments.' },
   assignAdmin: { title: 'Assignment submissions', none: 'No submissions yet.', pdf: 'Open PDF', sent: 'Sent to Telegram', failed: 'Telegram failed', notConfigured: 'Telegram not set up' },
   tiersAdmin: { title: 'Monthly plan discount tiers', text: 'Based on the total lessons inside the groups a student selects.', min: 'From lessons', max: 'To (0 = no limit)', percent: 'Discount %', add: '+ Add tier' },
   offline: { banner: 'Offline mode — unlocked lessons you opened before are available.' },

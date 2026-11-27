@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api, useApi, useAuth, fmtDate } from '../../api.js';
+import { api, useApi, useAuth, fmtDate, etb } from '../../api.js';
 import { useI18n } from '../../i18n/index.jsx';
 import Icon from '../../components/Icon.jsx';
 
@@ -13,8 +13,11 @@ export default function Assignment() {
   const [params] = useSearchParams();
   const summary = useApi('/me/summary');
   const mine = useApi('/assignments');
-  const [f, setF] = useState({ telegramUsername: '', email: '', notes: '', courseId: params.get('course') || '' });
+  const fees = useApi('/assignments/quote');
+  const accounts = useApi('/payment-accounts');
+  const [f, setF] = useState({ telegramUsername: '', email: '', notes: '', courseId: params.get('course') || '', reviewType: 'one_on_one', method: 'CBE', referenceId: '' });
   const [files, setFiles] = useState([]);
+  const [receipt, setReceipt] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
 
@@ -34,13 +37,20 @@ export default function Assignment() {
     const form = new FormData();
     Object.entries(f).forEach(([k, v]) => v && form.append(k, v));
     files.forEach((x) => form.append('images', x.file));
+    if (receipt) form.append('receipt', receipt);
     try {
       const r = await api('/assignments', { method: 'POST', form });
       setMsg({ ok: true, text: r.telegramStatus === 'sent' ? t('assign.done') : t('assign.saved') });
-      setFiles([]); setF({ ...f, notes: '' }); mine.reload();
+      setFiles([]); setReceipt(null); setF({ ...f, notes: '', referenceId: '' }); mine.reload();
     } catch (e2) { setMsg({ ok: false, text: e2.message }); }
     setBusy(false);
   };
+
+  const feeOf = (type) => fees.data?.fees.find((x) => x.type === type)?.feeEtb || 0;
+  const fee = feeOf(f.reviewType);
+  const acct = accounts.data?.[f.method];
+  const priceReady = fees.data?.ready && fee > 0;
+  const types = [['one_on_one', t('assign.type.one_on_one')], ['video', t('assign.type.video')], ['pdf', t('assign.type.pdf')]];
 
   return (
     <div className="grid xl:grid-cols-[1.4fr_1fr] gap-7 items-start">
@@ -60,6 +70,18 @@ export default function Assignment() {
           </select>
         </label>
         <label className="label">{t('assign.notes')}<textarea className="input min-h-28" value={f.notes} onChange={set('notes')} maxLength={4000} /></label>
+        <fieldset>
+          <legend className="text-sm text-muted mb-2">{t('assign.reviewType')}</legend>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {types.map(([v, l]) => (
+              <label key={v} className={`flex flex-col gap-1 p-3.5 rounded-xl cursor-pointer border ${f.reviewType === v ? 'border-2 border-teal bg-teal-active/50' : 'border-line-strong'}`}>
+                <span className="flex items-center gap-2"><input type="radio" name="reviewType" value={v} checked={f.reviewType === v} onChange={set('reviewType')} className="accent-teal" />{l}</span>
+                <strong className="text-teal-soft">{feeOf(v) > 0 ? etb(feeOf(v)) : '—'}</strong>
+              </label>
+            ))}
+          </div>
+          {fees.data && !priceReady && <p className="text-sm text-[#F2D98A] mt-2" role="alert">{t('assign.noPrice')}</p>}
+        </fieldset>
         <div className="flex flex-col gap-2">
           <span className="text-sm text-muted">{t('assign.images')}</span>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -78,8 +100,32 @@ export default function Assignment() {
             )}
           </div>
         </div>
+        <fieldset className="rounded-xl border border-line-strong p-4 flex flex-col gap-3">
+          <legend className="px-2 text-sm text-muted">{t('assign.payTitle')}</legend>
+          <div className="grid grid-cols-2 gap-3">
+            {[['CBE', t('pay.cbe')], ['TELEBIRR', t('pay.telebirr')]].map(([v, l]) => (
+              <label key={v} className={`flex items-center gap-2.5 p-3 rounded-xl cursor-pointer border ${f.method === v ? 'border-2 border-teal bg-teal-active/50' : 'border-line-strong'}`}>
+                <input type="radio" name="method" value={v} checked={f.method === v} onChange={set('method')} className="accent-teal" />{l}
+              </label>
+            ))}
+          </div>
+          <div className="rounded-xl bg-ink p-4 text-sm leading-7">
+            <span className="text-muted">{t('pay.transferExactly')}</span> <strong className="text-white">{priceReady ? etb(fee) : '—'}</strong><br />
+            <span className="text-muted">{t('pay.accountName')}:</span> {acct?.name || '—'}<br />
+            <span className="text-muted">{f.method === 'CBE' ? t('pay.cbeAccount') : t('pay.telebirrNumber')}:</span> {acct?.number || '—'}
+          </div>
+          <label className="label">{t('pay.reference')}
+            <input className="input" required minLength={4} maxLength={64} value={f.referenceId} onChange={set('referenceId')}
+              placeholder={f.method === 'CBE' ? t('pay.refPlaceholderCbe') : t('pay.refPlaceholderTb')} />
+          </label>
+          <label className="label">{t('assign.receipt')}
+            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setReceipt(e.target.files[0] || null)}
+              className="text-sm text-muted-soft file:mr-3 file:rounded-lg file:border-0 file:bg-teal-active file:px-3 file:py-2 file:text-mint" />
+          </label>
+          <p className="text-xs text-muted-dim">{t('assign.payNote')}</p>
+        </fieldset>
         {msg && <p className={`text-sm ${msg.ok ? 'rounded-xl bg-teal-active p-3 text-mint' : 'text-[#F2A7A0]'}`} role={msg.ok ? 'status' : 'alert'}>{msg.text}</p>}
-        <button className="btn-primary self-start" disabled={busy || !files.length}><Icon name="send" size={16} />{busy ? t('assign.sending') : t('assign.submit')}</button>
+        <button className="btn-primary self-start" disabled={busy || !files.length || !priceReady || f.referenceId.trim().length < 4 || !f.telegramUsername}><Icon name="send" size={16} />{busy ? t('assign.sending') : t('assign.submit')}</button>
       </form>
 
       <section className="card p-5 flex flex-col gap-3">
@@ -87,7 +133,7 @@ export default function Assignment() {
         {mine.data?.length === 0 && <p className="text-sm text-muted">{t('assign.none')}</p>}
         {mine.data?.map((a) => (
           <div key={a.id} className="text-sm border-b border-line pb-2.5 last:border-0">
-            <p className="flex items-center gap-1.5">{a.course ? loc(a.course, 'title') : '—'} · {a.imageCount} <Icon name="image" size={14} /></p>
+            <p className="flex items-center gap-1.5">{a.course ? loc(a.course, 'title') : '—'} · {a.imageCount} <Icon name="image" size={14} />{a.feeEtb ? ` · ${etb(a.feeEtb)}` : ''}{a.payment?.status ? ` · ${t(`common.status.${a.payment.status}`)}` : ''}</p>
             <p className="text-xs text-muted-dim">{fmtDate(a.createdAt)}</p>
           </div>
         ))}

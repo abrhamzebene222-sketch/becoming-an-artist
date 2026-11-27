@@ -22,6 +22,7 @@ import selfEvalRoutes from './routes/selfEvals.js';
 import newsRoutes from './routes/news.js';
 import adminNewsRoutes from './routes/adminNews.js';
 import adminExportRoutes from './routes/adminExport.js';
+import appUpdateRoutes from './routes/appUpdate.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -50,6 +51,7 @@ app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 app.use('/api/auth', authRoutes);
+app.use('/api', appUpdateRoutes);
 app.use('/api', catalogRoutes);
 app.use('/api', teacherRoutes);
 app.use('/api/media', mediaRoutes);

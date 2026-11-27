@@ -363,6 +363,50 @@ export async function tutoringQuote({ mode, hours, contentType, theoryPercent })
   };
 }
 
+// ---------- Assignment review fees ----------
+// fee = (configured 1-on-1 hourly rate) x multiplier.  1-on-1 = 1x (fixed). Video / PDF multipliers are edited in Admin > Settings.
+// Nothing is hardcoded as a price: if the 1-on-1 rate is not set in Settings, assignments cannot be submitted.
+export const ASSIGNMENT_TYPES = ['one_on_one', 'video', 'pdf'];
+export const ASSIGNMENT_RATIO_DEFAULTS = { video: 0.5, pdf: 0.25 };   // only the starting multipliers, shown in Settings
+
+const ratioOf = async (key, fallback) => {
+  const n = Number(await getSetting(key, fallback));
+  return Number.isFinite(n) && n > 0 && n <= 1 ? n : fallback;
+};
+
+/** The three multipliers: { one_on_one: 1, video, pdf }. */
+export async function assignmentRatios() {
+  return {
+    one_on_one: 1,
+    video: await ratioOf('assignmentRatioVideo', ASSIGNMENT_RATIO_DEFAULTS.video),
+    pdf: await ratioOf('assignmentRatioPdf', ASSIGNMENT_RATIO_DEFAULTS.pdf),
+  };
+}
+
+/** Which configured 1-on-1 hourly rate is the base (Settings: online or in-person). */
+export async function assignmentBase() {
+  const mode = (await getSetting('assignmentBaseMode', 'online')) === 'in_person' ? 'in_person' : 'online';
+  return { mode, rate: await tutoringRate(mode) };
+}
+
+/** All three fees for the form and Settings preview. */
+export async function assignmentFees() {
+  const [ratios, base] = await Promise.all([assignmentRatios(), assignmentBase()]);
+  return {
+    baseMode: base.mode, baseRateEtb: base.rate, ready: base.rate > 0,
+    fees: ASSIGNMENT_TYPES.map((type) => ({ type, ratio: ratios[type], feeEtb: Math.round(base.rate * ratios[type]) })),
+  };
+}
+
+/** Validate the review type and price it. Returns { error } (a message key) or { quote }. */
+export async function assignmentQuote(reviewType) {
+  if (!ASSIGNMENT_TYPES.includes(reviewType)) return { error: 'assignmentType' };
+  const [ratios, base] = await Promise.all([assignmentRatios(), assignmentBase()]);
+  const feeEtb = Math.round(base.rate * ratios[reviewType]);
+  if (!(feeEtb > 0)) return { error: 'assignmentNoPrice' };
+  return { quote: { reviewType, baseMode: base.mode, baseRateEtb: base.rate, ratio: ratios[reviewType], feeEtb } };
+}
+
 /** Legacy pricing (all paid courses monthly) + session prices + discount tiers. */
 export async function pricing() {
   const prices = await getPrices();

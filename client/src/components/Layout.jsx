@@ -6,6 +6,7 @@ import Logo from './Logo.jsx';
 import Icon from './Icon.jsx';
 import NotificationBell from './NotificationBell.jsx';
 import LanguageToggle from './LanguageToggle.jsx';
+import UpdateNotice from './UpdateNotice.jsx';
 import { SearchPanel } from './SearchHits.jsx';
 import useSearch from '../lib/useSearch.js';
 import { registerBackHandler, goBack, isRootPath } from '../lib/backButton.js';
@@ -35,6 +36,7 @@ const ADMIN_NAV = [
   { to: '/admin/news', key: 'news', icon: 'megaphone' },
   { to: '/admin/promos', key: 'promos', icon: 'megaphone' },
   { to: '/admin/telegram', key: 'telegram', icon: 'send', badge: 'pendingRewardTickets' },
+  { to: '/admin/app-updates', key: 'appUpdates', icon: 'upload' },
   { to: '/admin/assignments', key: 'assignments', icon: 'image', badge: 'newAssignments' },
   { to: '/admin/cloudinary', key: 'cloudinary', icon: 'cloud' },
   { to: '/admin/settings', key: 'settings', icon: 'settings' },
@@ -163,6 +165,7 @@ export default function Layout({ portal }) {
           </div>
         </header>
         <main className="px-4 lg:px-10 pt-4 pb-12">
+          {!adminPortal && <UpdateNotice />}
           <Outlet context={{ refreshOverview: overview.reload }} />
         </main>
       </div>

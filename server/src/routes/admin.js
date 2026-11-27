@@ -11,7 +11,7 @@ import { notifyUser, notifyAllStudents } from '../notify.js';
 import { fail } from '../i18n.js';
 import {
   ah, pricing, getSetting, setSetting, slugify, cleanTiers, DEFAULT_TIERS, youtubeId,
-  getPrices, creditHoursInput, DEFAULT_CREDIT_HOURS, creditConfig, selfEvalPriceOf,
+  getPrices, creditHoursInput, DEFAULT_CREDIT_HOURS, creditConfig, selfEvalPriceOf, ASSIGNMENT_RATIO_DEFAULTS, assignmentFees,
 } from '../lib.js';
 import {
   signUpload, findAsset, isConfigured, receiptUrl, resolveAccount, accountFor, syncMedia, uploadImage,
@@ -85,7 +85,7 @@ router.get('/payments', ah(async (req, res) => {
     .populate('user', 'name email phone').populate('course', 'title titleAm')
     .populate('category', 'title titleAm').populate('groups', 'title titleAm');
   const out = [];
-  for (const p of list) out.push({ ...p.toJSON(), receiptUrl: receiptUrl(p.receiptPublicId, await accountFor(p.receiptAccount)) });
+  for (const p of list) out.push({ ...p.toJSON(), receiptUrl: p.receiptPublicId ? receiptUrl(p.receiptPublicId, await accountFor(p.receiptAccount)) : null });
   res.json(out);
 }));
 
@@ -137,7 +137,7 @@ router.post('/payments/:id/review', ah(async (req, res) => {
     }
     await notifyUser(p.user, {
       type: 'payment_approved', params: { purpose: p.purpose, amount: p.purpose === 'topup' ? p.amountEtb : undefined },
-      title: 'Payment approved', body: 'Your access is unlocked.', link: p.purpose === 'session' ? '/sessions' : p.purpose === 'topup' ? '/rewards' : '/enrolled',
+      title: 'Payment approved', body: 'Your access is unlocked.', link: p.purpose === 'session' ? '/sessions' : p.purpose === 'topup' ? '/rewards' : p.purpose === 'assignment' ? '/assignment' : '/enrolled',
     });
   } else {
     await notifyUser(p.user, {
@@ -569,11 +569,15 @@ router.delete('/lessons/:id', confirmPassword, ah(async (req, res) => {
 
 // ---------- Settings, contacts, submission links ----------
 const SETTING_KEYS = ['subscriptionDiscountPercent', 'subscriptionFixedPriceEtb', 'sessionPriceOnlineEtb', 'sessionPriceInPersonEtb',
-  'creditHourRateEtb', 'defaultCreditHours',
+  'creditHourRateEtb', 'defaultCreditHours', 'assignmentRatioVideo', 'assignmentRatioPdf', 'assignmentBaseMode',
   'cbeAccountName', 'cbeAccountNumber', 'telebirrName', 'telebirrNumber'];
 const NUMERIC = new Set(['subscriptionDiscountPercent', 'subscriptionFixedPriceEtb', 'sessionPriceOnlineEtb', 'sessionPriceInPersonEtb',
   'creditHourRateEtb', 'defaultCreditHours']);
-const SETTING_DEFAULTS = { defaultCreditHours: DEFAULT_CREDIT_HOURS };   // shown when the admin never set it
+const RATIO_KEYS = new Set(['assignmentRatioVideo', 'assignmentRatioPdf']);   // must be > 0 and <= 1
+const SETTING_DEFAULTS = {
+  defaultCreditHours: DEFAULT_CREDIT_HOURS,
+  assignmentRatioVideo: ASSIGNMENT_RATIO_DEFAULTS.video, assignmentRatioPdf: ASSIGNMENT_RATIO_DEFAULTS.pdf, assignmentBaseMode: 'online',
+};   // shown when the admin never set it
 
 router.get('/settings', ah(async (_req, res) => {
   const settings = {};
@@ -582,13 +586,22 @@ router.get('/settings', ah(async (_req, res) => {
   res.json({
     settings,
     pricing: await pricing(),
+    assignmentFees: await assignmentFees(),
     contacts: await ContactInfo.find().sort({ sortOrder: 1 }),
     submissionLinks: await SubmissionLink.find().sort({ createdAt: 1 }),
   });
 }));
 
 router.put('/settings', ah(async (req, res) => {
+  for (const k of RATIO_KEYS) {
+    if (k in (req.body || {})) {
+      const n = Number(req.body[k]);
+      if (!(n > 0 && n <= 1)) return fail(req, res, 400, 'assignmentRatio');
+    }
+  }
+  if ('assignmentBaseMode' in (req.body || {}) && !['online', 'in_person'].includes(req.body.assignmentBaseMode)) return fail(req, res, 400, 'assignmentRatio');
   for (const k of SETTING_KEYS) {
+    if (RATIO_KEYS.has(k) && k in (req.body || {})) { await setSetting(k, Number(req.body[k])); continue; }
     if (k in (req.body || {})) await setSetting(k, NUMERIC.has(k) ? Math.max(0, Number(req.body[k]) || 0) : String(req.body[k] ?? ''));
   }
   if (Array.isArray(req.body?.subscriptionTiers)) await setSetting('subscriptionTiers', cleanTiers(req.body.subscriptionTiers));

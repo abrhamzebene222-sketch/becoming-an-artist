@@ -27,6 +27,14 @@ const MESSAGES = {
   exportBotMissing: ['Set up the Telegram bot and link your admin chat first (Admin > Telegram bot).', 'መጀመሪያ የቴሌግራም ቦቱን ያዘጋጁ እና የአድሚን ቻትዎን ያገናኙ (አድሚን › ቴሌግራም ቦት)።'],
   exportFont: ['PDF needs the Amharic font file on the server (server/src/fonts/NotoSansEthiopic-Regular.ttf). Send as HTML instead, or add the font.', 'PDF ለማዘጋጀት የአማርኛ ፎንት ፋይል በሰርቨሩ ላይ ያስፈልጋል (server/src/fonts/NotoSansEthiopic-Regular.ttf)። በ HTML ይላኩ ወይም ፎንቱን ይጨምሩ።'],
   exportTooBig: ['The exported file is larger than Telegram allows (about 50 MB). Export as HTML or split the lesson.', 'የተዘጋጀው ፋይል ቴሌግራም ከሚፈቅደው (ወደ 50 MB) ይበልጣል። በ HTML ይላኩ ወይም ትምህርቱን ይክፈሉ።'],
+  appVersionFields: ['Version name and a version code (a whole number above 0) are required.', 'የስሪት ስም እና የስሪት ቁጥር (ከ0 በላይ ሙሉ ቁጥር) ያስፈልጋል።'],
+  appVersionExists: ['This version code already exists. Use a higher number or edit the existing version.', 'ይህ የስሪት ቁጥር አስቀድሞ አለ። ከፍ ያለ ቁጥር ይጠቀሙ ወይም ያለውን ስሪት ያስተካክሉ።'],
+  appVersionLink: ['Add the Telegram post link, or attach the APK and tick \"Send to channel\".', 'የቴሌግራም ፖስት ሊንክ ያስገቡ፣ ወይም APK አያይዘው \"ወደ ቻናል ላክ\" የሚለውን ይምረጡ።'],
+  appVersionLinkBad: ['The link must be a Telegram link (https://t.me/…).', 'ሊንኩ የቴሌግራም ሊንክ (https://t.me/…) መሆን አለበት።'],
+  appVersionNotFound: ['Version not found.', 'ስሪቱ አልተገኘም።'],
+  apkInvalid: ['The file must be an .apk file.', 'ፋይሉ .apk መሆን አለበት።'],
+  apkTooBig: ['The APK is larger than the bot limit (about 50 MB). Post it in the channel yourself and paste the post link instead.', 'APK ከቦቱ ገደብ (ወደ 50 MB) ይበልጣል። በቻናሉ ላይ እራስዎ ይለጥፉና የፖስቱን ሊንክ ያስገቡ።'],
+  appSendFailed: ['The APK could not be sent to the channel. Check the bot is an admin of the channel (Admin > Telegram bot).', 'APK ወደ ቻናሉ መላክ አልተቻለም። ቦቱ የቻናሉ አድሚን መሆኑን ያረጋግጡ (አድሚን › ቴሌግራም ቦት)።'],
   exportFailed: ['Telegram did not accept the file.', 'ቴሌግራም ፋይሉን አልተቀበለም።'],
   newsExists: ['This lesson is already in the news.', 'ይህ ትምህርት አስቀድሞ በዜና ውስጥ አለ።'],
   courseNotPublished: ['Publish the course first so students can open this lesson.', 'ተማሪዎች ትምህርቱን እንዲከፍቱ መጀመሪያ ኮርሱን ያትሙ።'],
@@ -76,7 +84,11 @@ const MESSAGES = {
   telegramTokenInvalid: ['Telegram rejected this bot token.', 'ቴሌግራም ይህን የቦት ቶክን አልተቀበለም።'],
   campaignFields: ['Title and at least one milestone are required.', 'ርዕስ እና ቢያንስ አንድ የማጋራት ግብ ያስፈልጋሉ።'],
   ticketReviewed: ['This reward request was already reviewed.', 'ይህ የሽልማት ጥያቄ አስቀድሞ ታይቷል።'],
-  assignmentFields: ['Telegram username, email and at least one artwork image are required.', 'የቴሌግራም ስም፣ ኢሜይል እና ቢያንስ አንድ የስራ ምስል ያስፈልጋሉ።'],
+  assignmentFields: ['Email and at least one artwork image are required.', 'ኢሜይል እና ቢያንስ አንድ የስራ ምስል ያስፈልጋሉ።'],
+  assignmentType: ['Choose a review type: 1-on-1, recorded video or PDF.', 'የግምገማ አይነት ይምረጡ፦ የግል (1-on-1)፣ የቪዲዮ ወይም PDF።'],
+  assignmentRatio: ['Multipliers must be above 0 and at most 1 (for example 0.5 or 0.25).', 'ማባዣዎች ከ0 በላይ እና ከ1 ያልበለጡ መሆን አለባቸው (ለምሳሌ 0.5 ወይም 0.25)።'],
+  assignmentNoPrice: ['The assignment fee is not set yet. Please contact the instructor.', 'የአሳይንመንት ክፍያ ገና አልተወሰነም። እባክዎ አስተማሪውን ያነጋግሩ።'],
+  assignmentPayment: ['Payment is required: choose CBE or Telebirr and enter the payment reference ID.', 'ክፍያ ያስፈልጋል፦ CBE ወይም ቴሌብር ይምረጡ እና የክፍያ ማጣቀሻ ቁጥር ያስገቡ።'],
 };
 
 export const langOf = (req) => (String(req.headers['accept-language'] || 'am').toLowerCase().startsWith('en') ? 'en' : 'am');

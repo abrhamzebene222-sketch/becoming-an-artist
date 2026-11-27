@@ -11,7 +11,7 @@ import { requireAdmin } from '../auth.js';
 import { fail } from '../i18n.js';
 import { ah } from '../lib.js';
 import { encrypt, decrypt, mask } from '../secret.js';
-import { listAccounts, invalidateAccounts, pingAccount, syncMedia } from '../cloudinary.js';
+import { listAccounts, invalidateAccounts, pingAccount, syncMedia, receiptUrl, accountFor } from '../cloudinary.js';
 import { configureBot, botStatus, decideTicket } from '../telegram.js';
 
 const router = Router();
@@ -213,8 +213,17 @@ router.post('/users/:id/credit', ah(async (req, res) => {
 
 // ======================= Assignment submissions =======================
 router.get('/assignments', ah(async (_req, res) => {
-  res.json(await Assignment.find().sort({ createdAt: -1 }).limit(200)
-    .populate('user', 'name email').populate('course', 'title titleAm'));
+  const list = await Assignment.find().sort({ createdAt: -1 }).limit(200)
+    .populate('user', 'name email').populate('course', 'title titleAm').populate('payment');
+  const out = [];
+  for (const a of list) {
+    const j = a.toJSON();
+    const pay = a.payment;
+    j.payment = pay ? { id: pay.id, status: pay.status, method: pay.method, referenceId: pay.referenceId, amountEtb: pay.amountEtb,
+      receiptUrl: pay.receiptPublicId ? receiptUrl(pay.receiptPublicId, await accountFor(pay.receiptAccount)) : null } : null;
+    out.push(j);
+  }
+  res.json(out);
 }));
 
 export default router;

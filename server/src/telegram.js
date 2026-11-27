@@ -71,6 +71,38 @@ export async function sendAdminDocument(buffer, filename, caption, mimeType = 'a
   return data.ok ? { ok: true, status: 'sent' } : { ok: false, status: 'failed', error: data.description };
 }
 
+// ---- Channel posts (app update APK) ----
+/** Bot API upload limit for sendDocument (multipart). Bigger files must be posted in the channel by hand. */
+export const TELEGRAM_UPLOAD_LIMIT = 50 * 1000 * 1000;
+const channelRef = (c) => {
+  const v = String(c || '').trim().replace(/^https?:\/\/t\.me\//, '');
+  if (!v) return '';
+  return /^-?\d+$/.test(v) ? v : `@${v.replace(/^@/, '')}`;
+};
+/** Public link of the configured channel (needs a public @username), or '' */
+export const channelUrl = (cfg) => { const r = channelRef(cfg?.channel); return r.startsWith('@') ? `https://t.me/${r.slice(1)}` : ''; };
+
+/** Post a file to the configured channel (the bot must be an admin of the channel). Plain-text caption, no HTML. */
+export async function sendChannelDocument(buffer, filename, caption, mimeType = 'application/vnd.android.package-archive') {
+  const cfg = await botConfig();
+  const chat = channelRef(cfg.channel);
+  if (!cfg.token || !chat) return { ok: false, status: 'not_configured' };
+  if (buffer.length > TELEGRAM_UPLOAD_LIMIT) return { ok: false, status: 'too_big' };
+  try {
+    const fd = new FormData();
+    fd.append('chat_id', chat);
+    fd.append('caption', String(caption || '').slice(0, 1024));
+    fd.append('document', new Blob([buffer], { type: mimeType }), filename);
+    const res = await fetch(`${API}/bot${cfg.token}/sendDocument`, { method: 'POST', body: fd, signal: AbortSignal.timeout(300_000) });
+    const data = await res.json().catch(() => ({ ok: false, description: `HTTP ${res.status}` }));
+    if (!data.ok) return { ok: false, status: 'failed', error: data.description || 'Telegram error' };
+    const id = data.result?.message_id;
+    return { ok: true, status: 'sent', messageId: id, url: chat.startsWith('@') && id ? `https://t.me/${chat.slice(1)}/${id}` : '' };
+  } catch (e) {
+    return { ok: false, status: 'failed', error: e.message };
+  }
+}
+
 export async function sendAdminMessage(text, extra) {
   const cfg = await botConfig();
   if (!cfg.token || !cfg.adminChatId) return null;

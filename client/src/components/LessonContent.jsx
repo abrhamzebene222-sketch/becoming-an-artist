@@ -1,28 +1,26 @@
 import { useEffect, useState } from 'react';
-import { api, cdn } from '../api.js';
+import { cdn, useApi } from '../api.js';
 import { useI18n } from '../i18n/index.jsx';
 import Icon from './Icon.jsx';
 import { imageNumbers, imageLabel } from '../lib/imageLabel.js';
 
 /**
  * In-app lesson view (web-view style): video / PDF from Cloudinary + modular text, image and YouTube blocks.
- * Loaded when the accordion opens. The service worker keeps a copy of the JSON and every image,
- * so a lesson opened once online also opens offline.
+ * Loaded when the accordion opens. The service worker keeps a copy of the JSON and every image, so a lesson opened once
+ * online also opens offline. A saved lesson opens instantly and refreshes behind the scenes (see api.js › useApi).
  */
 export default function LessonContent({ lessonId }) {
   const { t, lang } = useI18n();
-  const [data, setData] = useState(null);
-  const [err, setErr] = useState('');
+  const lesson = useApi(`/media/lesson/${lessonId}`);
+  const data = lesson.data?.id === lessonId ? lesson.data : null; // never show the previous lesson while the next one loads
+  const err = !data && lesson.error ? lesson.error.message : '';
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' && !navigator.onLine);
 
   useEffect(() => {
-    let alive = true;
-    setData(null); setErr('');
-    api(`/media/lesson/${lessonId}`).then((d) => alive && setData(d)).catch((e) => alive && setErr(e.message));
     const on = () => setOffline(false); const off = () => setOffline(true);
     window.addEventListener('online', on); window.addEventListener('offline', off);
-    return () => { alive = false; window.removeEventListener('online', on); window.removeEventListener('offline', off); };
-  }, [lessonId]);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
 
   if (err) return <p className="text-sm text-muted p-4">{err}</p>;
   if (!data) return <p className="text-sm text-muted p-4">{t('detail.loadingLesson')}</p>;

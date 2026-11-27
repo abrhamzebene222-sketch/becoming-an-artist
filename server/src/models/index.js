@@ -185,7 +185,7 @@ export const Subscription = model('Subscription', new Schema({
 // ---------- Payments (CBE / Telebirr screenshot verification) ----------
 const PaymentSchema = new Schema({
   user: ref('User', true),
-  purpose: { type: String, enum: ['course', 'subscription', 'session', 'group', 'group_subscription', 'topup'], required: true },
+  purpose: { type: String, enum: ['course', 'subscription', 'session', 'group', 'group_subscription', 'topup', 'assignment'], required: true },
   course: ref('Course'),
   category: ref('Category'),                                           // purpose 'group'
   groups: { type: [{ type: Schema.Types.ObjectId, ref: 'Category' }], default: [] }, // purpose 'group_subscription'
@@ -194,7 +194,7 @@ const PaymentSchema = new Schema({
   amountEtb: { type: Number, required: true },
   method: { type: String, enum: ['CBE', 'TELEBIRR'], required: true },
   referenceId: { type: String, required: true, trim: true },
-  receiptPublicId: { type: String, required: true }, // private image on Cloudinary
+  receiptPublicId: { type: String, required: function () { return this.purpose !== 'assignment'; } }, // private image on Cloudinary (assignment payments may give only a reference ID)
   receiptAccount: { type: String, default: 'env' },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending', index: true },
   adminNote: String,
@@ -339,6 +339,24 @@ const NewsItemSchema = new Schema({
 NewsItemSchema.index({ isActive: 1, createdAt: -1 });
 export const NewsItem = model('NewsItem', NewsItemSchema);
 
+// ---------- App update notices (Admin › App updates) ----------
+// One row per published app version. Students on the Android app see "New update available" when the newest active
+// versionCode is higher than the installed one. The Update button opens `telegramUrl` (the channel post with the APK).
+export const AppVersion = model('AppVersion', new Schema({
+  versionName: { type: String, required: true, trim: true },
+  versionCode: { type: Number, required: true, unique: true, min: 1 },
+  notes: { type: String, default: '' },
+  notesAm: { type: String, default: '' },
+  mandatory: { type: Boolean, default: false },
+  telegramUrl: { type: String, default: '' },
+  isActive: { type: Boolean, default: true },
+  apkName: { type: String, default: '' },
+  apkSize: { type: Number, default: 0 },
+  channelMessageId: Number,
+  channelStatus: { type: String, enum: ['', 'sent', 'failed', 'too_big', 'not_configured'], default: '' },
+  channelError: { type: String, default: '' },
+}, opts()));
+
 // ---------- Telegram referral / APK sharing / sponsored campaigns ----------
 const MilestoneSchema = new Schema({
   shares: { type: Number, required: true, min: 1 },
@@ -418,6 +436,14 @@ export const Assignment = model('Assignment', new Schema({
   email: String,
   notes: String,
   imageCount: Number,
+  // Review type + fee (computed by the server from Settings, never trusted from the browser)
+  reviewType: { type: String, enum: ['one_on_one', 'video', 'pdf'] },
+  baseRateEtb: Number,
+  ratioUsed: Number,
+  feeEtb: Number,
+  paymentMethod: { type: String, enum: ['CBE', 'TELEBIRR'] },
+  paymentReference: String,
+  payment: ref('Payment'),               // pending until the admin approves it in Admin › Payments
   pdfUrl: String,
   pdfPublicId: String,
   pdfAccount: String,

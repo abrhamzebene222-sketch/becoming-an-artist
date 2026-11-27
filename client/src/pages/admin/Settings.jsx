@@ -149,6 +149,41 @@ export default function Settings() {
         </section>
 
         <section className="card p-6 flex flex-col gap-3 xl:col-span-2">
+          <h2 className="text-lg font-semibold">{t('assignFee.title')}</h2>
+          <p className="text-sm text-muted-soft">{t('assignFee.text')}</p>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <label className="label">{t('assignFee.base')}
+              <select className="input" value={s.assignmentBaseMode || 'online'} onChange={(e) => setS({ ...s, assignmentBaseMode: e.target.value })}>
+                <option value="online">{t('admin.settings.sessionOnline')}</option>
+                <option value="in_person">{t('admin.settings.sessionInPerson')}</option>
+              </select>
+            </label>
+            <label className="label">{t('assignFee.video')}
+              <input type="number" min="0.01" max="1" step="0.01" className="input" value={s.assignmentRatioVideo ?? ''} onChange={(e) => setS({ ...s, assignmentRatioVideo: e.target.value })} />
+            </label>
+            <label className="label">{t('assignFee.pdf')}
+              <input type="number" min="0.01" max="1" step="0.01" className="input" value={s.assignmentRatioPdf ?? ''} onChange={(e) => setS({ ...s, assignmentRatioPdf: e.target.value })} />
+            </label>
+          </div>
+          {(() => {
+            const base = Number((s.assignmentBaseMode === 'in_person' ? s.sessionPriceInPersonEtb : s.sessionPriceOnlineEtb) || 0);
+            const rows = [['one_on_one', 1], ['video', Number(s.assignmentRatioVideo)], ['pdf', Number(s.assignmentRatioPdf)]];
+            return (
+              <div className="bg-ink rounded-xl p-4 text-sm">
+                {base > 0 ? (
+                  <table className="w-full text-left">
+                    <thead className="text-xs text-muted"><tr><th className="py-1">{t('assign.reviewType')}</th><th>{t('assignFee.multiplier')}</th><th>{t('assignFee.fee')}</th></tr></thead>
+                    <tbody>{rows.map(([k, r]) => (
+                      <tr key={k} className="border-t border-line"><td className="py-1">{t(`assign.type.${k}`)}</td><td>{r || '—'}×</td><td>{etb(Math.round(base * r))}</td></tr>
+                    ))}</tbody>
+                  </table>
+                ) : <p className="text-[#F2D98A]" role="alert">{t('assignFee.noBase')}</p>}
+              </div>
+            );
+          })()}
+        </section>
+
+        <section className="card p-6 flex flex-col gap-3 xl:col-span-2">
           <h2 className="text-lg font-semibold">{t('tiersAdmin.title')}</h2>
           <p className="text-sm text-muted-soft">{t('tiersAdmin.text')}</p>
           <div className="hidden sm:grid grid-cols-[1fr_1fr_1fr_44px] gap-2 text-xs text-muted">

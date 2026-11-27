@@ -30,6 +30,7 @@ import Users from './pages/admin/Users.jsx';
 import CloudinaryAccounts from './pages/admin/CloudinaryAccounts.jsx';
 import Promos from './pages/admin/Promos.jsx';
 import TelegramBot from './pages/admin/TelegramBot.jsx';
+import AppUpdates from './pages/admin/AppUpdates.jsx';
 import Assignments from './pages/admin/Assignments.jsx';
 import AdminSelfEvals from './pages/admin/SelfEvals.jsx';
 import AdminNews from './pages/admin/News.jsx';
@@ -106,6 +107,7 @@ export default function App() {
         <Route path="cloudinary" element={<CloudinaryAccounts />} />
         <Route path="promos" element={<Promos />} />
         <Route path="telegram" element={<TelegramBot />} />
+        <Route path="app-updates" element={<AppUpdates />} />
         <Route path="assignments" element={<Assignments />} />
         <Route path="self-evals" element={<AdminSelfEvals />} />
         <Route path="news" element={<AdminNews />} />

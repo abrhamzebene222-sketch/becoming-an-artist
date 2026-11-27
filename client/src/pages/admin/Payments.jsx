@@ -38,9 +38,11 @@ export default function Payments() {
       <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-5">
         {list.data?.map((p) => (
           <article key={p.id} className="card p-5 flex flex-col gap-3">
-            <a href={p.receiptUrl} target="_blank" rel="noreferrer" title={t('admin.payments.openReceipt')}>
-              <img src={p.receiptUrl} alt={t('pay.screenshot')} loading="lazy" className="w-full max-h-72 object-contain bg-ink-deep rounded-xl border border-line" />
-            </a>
+            {p.receiptUrl ? (
+              <a href={p.receiptUrl} target="_blank" rel="noreferrer" title={t('admin.payments.openReceipt')}>
+                <img src={p.receiptUrl} alt={t('pay.screenshot')} loading="lazy" className="w-full max-h-72 object-contain bg-ink-deep rounded-xl border border-line" />
+              </a>
+            ) : <p className="text-sm text-[#F2D98A]">{t('assign.noReceipt')}</p>}
             <div className="flex justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-semibold">{p.user?.name}</p>

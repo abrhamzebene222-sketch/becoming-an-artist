@@ -66,7 +66,7 @@ export default {
   enrolled: {
     title: 'የተመዘገብኩባቸው ኮርሶች', subscribedUntil: 'ወርሃዊ ምዝገባዎ እስከ {date} ድረስ ይሠራል', none: 'እስካሁን የተከፈተ የክፍያ ኮርስ የለም።',
     history: 'የክፍያ ታሪክ', date: 'ቀን', for: 'ለ', methodRef: 'መንገድ · ማጣቀሻ', amount: 'መጠን', status: 'ሁኔታ',
-    noPayments: 'እስካሁን ምንም ክፍያ የለም።', purpose: { group: 'የኮርስ ቡድን', group_subscription: 'ወርሃዊ የቡድን ዕቅድ', course: 'ኮርስ', subscription: 'ወርሃዊ ምዝገባ', session: 'የግል ትምህርት' },
+    noPayments: 'እስካሁን ምንም ክፍያ የለም።', purpose: { group: 'የኮርስ ቡድን', group_subscription: 'ወርሃዊ የቡድን ዕቅድ', course: 'ኮርስ', subscription: 'ወርሃዊ ምዝገባ', session: 'የግል ትምህርት', assignment: 'የአሳይንመንት ግምገማ', topup: 'የቶክን መሙያ' },
   },
   sessions: {
     title: 'የግል (1 ለ 1) ትምህርት', requestTitle: 'የግል ትምህርት ይጠይቁ', format: 'ዓይነት', when: 'የሚመርጡት ቀን እና ሰዓት',
@@ -241,7 +241,10 @@ export default {
     reasons: { referral_reward: 'የግብዣ ሽልማት', unlock_course: 'ኮርስ ተከፍቷል', unlock_group: 'ቡድን ተከፍቷል', admin: 'በአስተማሪው የተደረገ ማስተካከያ' },
   },
   assign: {
-    title: 'አሳይንመንትዎን ያስገቡ', text: 'ስራዎ ወደ PDF ሪፖርት ተዘጋጅቶ በቴሌግራም ለአስተማሪው ይላካል።',
+    title: 'አሳይንመንትዎን ያስገቡ', text: 'የግምገማ አይነት ይምረጡ፣ ክፍያ ይፈጽሙ እና ስራዎን ይላኩ። ቅጹ እና የክፍያ መረጃው በአንድ PDF ተዘጋጅቶ በቴሌግራም ለአስተማሪው ይላካል።',
+    reviewType: 'የግምገማ አይነት', type: { one_on_one: 'የግል (1-on-1) ግምገማ', video: 'የተቀዳ ቪዲዮ ግምገማ', pdf: 'የPDF ጽሑፍ ግምገማ' },
+    noPrice: 'የአሳይንመንት ክፍያ ገና አልተወሰነም። እባክዎ አስተማሪውን ያነጋግሩ።', payTitle: 'ክፍያ (ግዴታ)',
+    receipt: 'የክፍያ ደረሰኝ ፎቶ (ይመከራል)', payNote: 'መጀመሪያ ይክፈሉ፣ ከዚያ የክፍያ ማጣቀሻ ቁጥሩን ያስገቡ። አሳይንመንትዎ ከክፍያ መረጃው ጋር ይላካል፤ አስተማሪው ክፍያውን ያረጋግጣል።', noReceipt: 'የደረሰኝ ምስል የለም — በማጣቀሻ ቁጥሩ ያረጋግጡ።',
     telegram: 'የቴሌግራም የተጠቃሚ ስም', email: 'ኢሜይል', course: 'ኮርስ (አማራጭ)', notes: 'ለአስተማሪው ማስታወሻ', images: 'የስራ ምስሎች (እስከ 12)',
     submit: 'አሳይንመንቱን ላክ', sending: 'PDF እየተዘጋጀ እና እየተላከ ነው…', done: 'ተልኳል! አስተማሪው PDFዎን ተቀብሏል።', saved: 'ተቀምጧል። አስተማሪው በዳሽቦርዱ ያየዋል።',
     mine: 'ያስገባኋቸው', none: 'ገና ምንም አላስገቡም።', remove: 'ምስሉን አስወግድ',
@@ -272,6 +275,7 @@ export default {
     active: 'ንቁ', saveCampaign: 'ዘመቻውን አስቀምጥ', delete: 'ሰርዝ', code: 'ኮድ', shareCount: '{n} ማጋራቶች',
     tickets: 'የሽልማት ጥያቄዎች', approve: 'አጽድቅ', reject: 'አትቀበል', noTickets: 'እዚህ ምንም ጥያቄ የለም።', via: 'በ{v}',
   },
+  assignFee: { title: 'የአሳይንመንት ግምገማ ክፍያ', text: 'ክፍያ = የ1-on-1 የሰዓት ዋጋ × ማባዣው። 1-on-1 ሁልጊዜ 1× ነው። መነሻ ዋጋው እስኪወሰን ተማሪዎች ማስገባት አይችሉም።', base: 'መነሻ 1-on-1 ዋጋ', video: 'የቪዲዮ ግምገማ ማባዣ', pdf: 'የPDF ማባዣ', multiplier: 'ማባዣ', fee: 'ክፍያ', noBase: 'ከላይ የ1-on-1 የሰዓት ዋጋ ያስገቡ (ቅንብሮች › ዋጋ) — እስከዚያ ተማሪዎች አሳይንመንት ማስገባት አይችሉም።' },
   assignAdmin: { title: 'የገቡ አሳይንመንቶች', none: 'ገና ምንም አልገባም።', pdf: 'PDF ክፈት', sent: 'ወደ ቴሌግራም ተልኳል', failed: 'ቴሌግራም አልተሳካም', notConfigured: 'ቴሌግራም አልተዘጋጀም' },
   tiersAdmin: { title: 'የወርሃዊ ዕቅድ ቅናሽ ደረጃዎች', text: 'ተማሪው በሚመርጣቸው ቡድኖች ውስጥ ባሉ ጠቅላላ ትምህርቶች ላይ የተመሰረተ።', min: 'ከ (ትምህርቶች)', max: 'እስከ (0 = ገደብ የለም)', percent: 'ቅናሽ %', add: '+ ደረጃ ያክሉ' },
   offline: { banner: 'ከመስመር ውጭ — ቀደም ብለው የከፈቷቸው ትምህርቶች ይገኛሉ።' },
