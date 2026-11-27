@@ -87,11 +87,14 @@ app.use((err, req, res, _next) => {
 
 try {
   await connectDB();
-  await seed();
+  // Open the port FIRST so Render sees the service as live; the seed (many database checks) runs right after, in the background.
   app.listen(config.port, '0.0.0.0', () => {
     console.log(`✔ Becoming an Artist running on port ${config.port}`);
     console.log(`  Videos, PDFs & receipts: Cloudinary (${config.cloudinary.cloudName || 'not configured'})`);
   });
+  seed()
+    .then(() => console.log('✔ Seed finished'))
+    .catch((e) => console.error('✖ Seed failed:', e.message));
 } catch (e) {
   console.error('✖ Could not start:', e.message);
   console.error('  Check MONGO_URI (username, password, database access) and Atlas › Network Access.');
