@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { App as CapApp } from '@capacitor/app';
 import { api } from '../api.js';
 import { useI18n } from '../i18n/index.jsx';
 import Icon from './Icon.jsx';
